@@ -13,11 +13,13 @@ import {
   restoreSchema,
   taskIdSchema,
   updateContentSchema,
+  undoLayoutSchema,
 } from "./schemas";
 
 export type ActionResult = { ok: true; data?: Record<string, unknown> } | { ok: false; error: string; code?: string };
 
 const MESSAGES: Record<string, string> = {
+  UNDO_UNAVAILABLE: "This action can no longer be undone. The task or board has changed.",
   BOARD_DESTROYED: "Your board exploded. Deal with it before doing anything else.",
   TASK_NOT_ACTIVE: "This task is no longer active. Its fuse may have just run out.",
   NOT_FOUND: "That task doesn't exist anymore.",
@@ -68,6 +70,11 @@ export const moveTask = async (input: z.input<typeof moveSchema>) =>
 
 export const completeTask = async (input: z.input<typeof taskIdSchema>) =>
   call(taskIdSchema, input, "complete_task", (v) => ({ p_task: v.taskId }));
+
+export const undoCompleteTask = async (input: z.input<typeof taskIdSchema>) =>
+  call(taskIdSchema, input, "undo_complete_task", (v) => ({ p_task: v.taskId }));
+export const undoLayout = async (input: z.input<typeof undoLayoutSchema>) =>
+  call(undoLayoutSchema, input, "undo_layout", (v) => ({ p_changes: v.changes }));
 
 export const rescheduleTask = async (input: z.input<typeof rescheduleSchema>) =>
   call(rescheduleSchema, input, "reschedule_task", (v) => ({ p_task: v.taskId, p_new_end: v.newEnd }));

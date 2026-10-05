@@ -19,12 +19,12 @@ import { TimeTravelPanel } from "@/components/dev/time-travel-panel";
 import { getNow, syncServerClock, useClockValue, useHydrated } from "@/lib/clock";
 import { useOnline, useReducedMotion } from "@/lib/use-online";
 import { getActivePause, getRemainingMs } from "@/domain/time";
-import { getNewTaskPosition } from "@/domain/board";
+import { clampToBoard, getNewTaskPosition } from "@/domain/board";
 import { packCards, readingOrder, sortTasks, type BoardSort } from "@/domain/layout";
 import { getTaskTemporalState } from "@/domain/urgency";
 import type { BoardSnapshot } from "@/server/queries";
 import { completeToast, playCompleteChime } from "@/lib/celebrate";
-import { moveTask, syncBoard } from "@/server/actions";
+import { moveTask, syncBoard, undoCompleteTask, undoLayout } from "@/server/actions";
 import type { Task } from "@/domain/types";
 import { settleDrop } from "@/domain/drop-layout";
 import { visualSize } from "@/domain/layout";
@@ -99,6 +99,21 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
     const overrides = moved.key === incidentKey ? moved.map : {};
     return Object.fromEntries(tasks.map((t) => [t.id, overrides[t.id] ?? { x: t.positionX, y: t.positionY }]));
   }, [tasks, moved, incidentKey]);
+  const offerLayoutUndo = useCallback((before: Record<string, { x: number; y: number }>, after: Record<string, { x: number; y: number }>) => {
+    const changes = Object.entries(after).filter(([id, p]) => before[id] && (p.x !== before[id].x || p.y !== before[id].y))
+      .map(([id, p]) => ({ id, ...before[id], expectedX: p.x, expectedY: p.y }));
+    if (!changes.length) return;
+    let used = false;
+    const expires = Date.now() + 15_000;
+    toast.success("Board rearranged.", { duration: 15_000, action: { label: "Undo", onClick: async () => {
+      if (used || Date.now() > expires) return;
+      used = true;
+      const result = await undoLayout({ changes });
+      if (!result.ok) { toast.error("Couldn't undo that arrangement.", { description: result.error }); return; }
+      setMoved((previous) => ({ key: incidentKey, map: { ...(previous.key === incidentKey ? previous.map : {}), ...Object.fromEntries(changes.map((c) => [c.id, { x: c.x, y: c.y }])) } }));
+      refresh();
+    } } });
+  }, [incidentKey, refresh]);
   const onMove = useCallback(
     async (id: string, x: number, y: number, sizes: Record<string, { width: number; height: number }>) => {
       const cards = tasks.filter((t) => t.status === "active" || (t.status === "completed" && !preferences.hideCompleted)).map((t) => {
@@ -118,16 +133,19 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
         setMoved({ key: incidentKey, map: {} });
         toast.error("Couldn't rearrange the cards.", { description: failure.error });
         refresh();
+      } else {
+        offerLayoutUndo(positions, next);
       }
     },
-    [incidentKey, tasks, pauses, positions, refresh, preferences.hideCompleted],
+    [incidentKey, tasks, pauses, positions, refresh, preferences.hideCompleted, offerLayoutUndo],
   );
 
   const layoutTasks = useCallback(
     async (ordered: Task[]) => {
       if (!ordered.length) return;
       const now = getNow();
-      const next = packCards(ordered.map((t) => ({ id: t.id, scale: getTaskTemporalState(t, pauses, now).scale })));
+      const packed = packCards(ordered.map((t) => ({ id: t.id, scale: getTaskTemporalState(t, pauses, now).scale })));
+      const next = Object.fromEntries(Object.entries(packed).map(([id, p]) => [id, clampToBoard(p.x, p.y)]));
       setMoved({ key: incidentKey, map: next });
       const results = await Promise.all(Object.entries(next).map(([id, p]) => moveTask({ taskId: id, x: p.x, y: p.y })));
       const fail = results.find((r) => !r.ok);
@@ -135,9 +153,11 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
         setMoved({ key: incidentKey, map: {} });
         toast.error("Couldn't rearrange the board.", { description: fail.error });
         refresh();
+      } else {
+        offerLayoutUndo(positions, next);
       }
     },
-    [pauses, incidentKey, refresh],
+    [pauses, incidentKey, refresh, positions, offerLayoutUndo],
   );
 
   // --- completion: animate only after the server confirmed ---
@@ -149,7 +169,17 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
       const t = tasks.find((x) => x.id === id);
       playCompleteChime();
       const copy = completeToast(t?.title ?? "Task", t?.explosionCount ?? 0);
-      toast.success(copy.title, { description: copy.description, duration: 4200 });
+      let used = false;
+      const expires = Date.now() + 15_000;
+      toast.success(copy.title, { description: copy.description, duration: 15_000, action: { label: "Undo", onClick: async () => {
+        if (used || Date.now() > expires) return;
+        used = true;
+        const result = await undoCompleteTask({ taskId: id });
+        if (!result.ok) { toast.error("Couldn't undo completion.", { description: result.error }); return; }
+        setLeaving((previous) => { const next = new Set(previous); next.delete(id); return next; });
+        refresh();
+        toast.success("Completion undone.");
+      } } });
       setTimeout(refresh, reducedMotion ? 220 : 1000);
     },
     [tasks, refresh, reducedMotion],

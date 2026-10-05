@@ -26,6 +26,7 @@ export function describeEvent(e: TaskEvent, explosionCount = 0): Described {
       return { title: "Exploded", detail: n === 1 ? "Exploded once" : `Explosion #${n}`, reason: m.fuseMs ? `Fuse: ${formatDuration(Number(m.fuseMs))}` : undefined };
     }
     case "rescheduled":
+      if (m.source === "undo_completion") return { title: "Completion undone", detail: "Original fuse resumed" };
       return {
         title: m.source === "post_mortem" ? "Relit after explosion" : "Deadline changed",
         detail: m.addedMs !== undefined ? `${Number(m.addedMs) >= 0 ? "+" : "−"}${formatDuration(Number(m.addedMs))}` : m.fuseMs ? `New fuse: ${formatDuration(Number(m.fuseMs))}` : undefined,
