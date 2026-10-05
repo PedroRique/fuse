@@ -5,14 +5,14 @@ import type { BoardSort } from "@/domain/layout";
 
 const KEY = "fuse.board-preferences.v1";
 const EVENT = "fuse:board-preferences";
-type Preferences = { sort: BoardSort; hideCompleted: boolean };
-const defaults: Preferences = { sort: "deadline", hideCompleted: false };
+type Preferences = { sort: BoardSort; hideCompleted: boolean; view: "canvas" | "list" };
+const defaults: Preferences = { sort: "deadline", hideCompleted: false, view: "canvas" };
 let fallback: string | null = null;
 
 export function parsePreferences(raw: string | null): Preferences {
   try {
     const value = JSON.parse(raw ?? "null");
-    return { sort: ["deadline", "severity", "fuse"].includes(value?.sort) ? value.sort : defaults.sort, hideCompleted: value?.hideCompleted === true };
+    return { sort: ["deadline", "severity", "fuse"].includes(value?.sort) ? value.sort : defaults.sort, hideCompleted: value?.hideCompleted === true, view: value?.view === "list" ? "list" : "canvas" };
   } catch { return defaults; }
 }
 

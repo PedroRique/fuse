@@ -7,6 +7,7 @@ import { Plus, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/app-header";
 import { BoardCanvas } from "./board-canvas";
+import { TaskList } from "./task-list";
 import { PauseBanner } from "./pause-banner";
 import type { CardMotion } from "./task-card";
 import { CreateTaskDialog } from "@/components/dialogs/create-task-dialog";
@@ -220,6 +221,7 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
   const onSort = useCallback(
     (by: BoardSort) => {
       preferences.update({ sort: by });
+      if (preferences.view === "list") return;
       void layoutTasks(sortTasks(boardTasks, pauses, getNow(), by));
     },
     [layoutTasks, boardTasks, pauses, preferences],
@@ -230,10 +232,10 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
     const id = pendingArrangement.current;
     if (!id || !tasks.some((t) => t.id === id)) return;
     pendingArrangement.current = null;
-    if (blocked || !online) return;
+    if (blocked || !online || preferences.view === "list") return;
     const visible = tasks.filter((t) => t.status === "active" || (t.status === "completed" && !preferences.hideCompleted));
     void layoutTasks(sortTasks(visible, pauses, getNow(), preferences.sort));
-  }, [tasks, pauses, blocked, online, layoutTasks, preferences.hideCompleted, preferences.sort]);
+  }, [tasks, pauses, blocked, online, layoutTasks, preferences.hideCompleted, preferences.sort, preferences.view]);
 
   const detailsTask = tasks.find((t) => t.id === detailsId && (t.status === "active" || t.status === "completed")) ?? null;
   const cutWireTask = tasks.find((t) => t.id === cutWire?.id && t.status === "active") ?? null;
@@ -262,7 +264,7 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
         active="board"
         onNewTask={() => setCreateOpen(true)}
         onEmergency={() => setPauseOpen(true)}
-        onTidy={onTidy}
+        onTidy={preferences.view === "canvas" ? onTidy : undefined}
         onSort={onSort}
         sortBy={preferences.sort}
         hideCompleted={preferences.hideCompleted}
@@ -272,6 +274,10 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
         emergencyDisabled={blocked || !!activePause || !online}
         arrangeDisabled={blocked || !online || boardTasks.length === 0}
       />
+      <div className="flex items-center gap-1 border-b px-3 py-2 sm:px-6" role="group" aria-label="Task view">
+        <Button size="sm" variant={preferences.view === "canvas" ? "default" : "outline"} aria-pressed={preferences.view === "canvas"} onClick={() => preferences.update({ view: "canvas" })}>Canvas</Button>
+        <Button size="sm" variant={preferences.view === "list" ? "default" : "outline"} aria-pressed={preferences.view === "list"} onClick={() => preferences.update({ view: "list" })}>List</Button>
+      </div>
       {!online && (
         <div role="status" className="flex items-center justify-center gap-2 border-b bg-amber-50 px-4 py-2 text-sm text-amber-900">
           <WifiOff className="size-4" aria-hidden /> You&apos;re offline. Actions are disabled until you reconnect; fuses keep burning.
@@ -303,7 +309,7 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
       ) : (
         <>
           {exploding && !reducedMotion && <div aria-hidden className="pointer-events-none fixed inset-0 z-[150000] animate-[flash_700ms_ease-out_forwards] bg-amber-50" />}
-          <BoardCanvas
+          {preferences.view === "list" ? <TaskList tasks={destroyed && !exploding ? [] : boardTasks} pauses={pauses} sort={preferences.sort} onOpen={setDetailsId} onDue={onDue} interactive={!blocked && online} empty={empty} /> : <BoardCanvas
             tasks={destroyed && !exploding ? [] : boardTasks}
             pauses={pauses}
             positions={positions}
@@ -315,7 +321,7 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
             onOpen={setDetailsId}
             onDue={onDue}
             empty={empty}
-          />
+          />}
         </>
       )}
 
