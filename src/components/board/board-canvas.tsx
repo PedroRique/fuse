@@ -68,6 +68,7 @@ export function BoardCanvas({ tasks, pauses, positions, motions, paused, shaking
 
   const handleDragEnd = useCallback(
     (e: DragEndEvent) => {
+      if (camera.gestureRef.current) return;
       lastDragEnd.current = Date.now();
       const id = String(e.active.id);
       const from = positions[id];
@@ -76,7 +77,7 @@ export function BoardCanvas({ tasks, pauses, positions, motions, paused, shaking
       const to = clampToBoard(from.x + e.delta.x / z, from.y + e.delta.y / z);
       onMove(id, to.x, to.y);
     },
-    [positions, onMove, camera.cameraRef],
+    [positions, onMove, camera.cameraRef, camera.gestureRef],
   );
 
   const handleOpen = useCallback(
@@ -103,6 +104,11 @@ export function BoardCanvas({ tasks, pauses, positions, motions, paused, shaking
         onPointerMove={camera.onPointerMove}
         onPointerUp={camera.onPointerUp}
         onPointerCancel={camera.onPointerUp}
+        onPointerDownCapture={camera.onPointerDownCapture}
+        onPointerMoveCapture={camera.onPointerMoveCapture}
+        onPointerUpCapture={camera.onPointerUpCapture}
+        onPointerCancelCapture={camera.onPointerUpCapture}
+        onClickCapture={camera.onClickCapture}
       >
         <DndContext sensors={sensors} onDragEnd={handleDragEnd} accessibility={{ screenReaderInstructions: { draggable: "Press space to pick up a card, use the arrow keys to move it, and space again to drop it. Press enter to open it." } }}>
           <div

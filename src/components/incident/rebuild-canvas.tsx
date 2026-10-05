@@ -73,6 +73,7 @@ export function RebuildCanvas({
   }
 
   function handleDragEnd(e: DragEndEvent) {
+    if (camera.gestureRef.current) return;
     const id = String(e.active.id);
     const c = cards.find((x) => x.taskId === id);
     if (!c || c.restoredAt || pending[id]) return;
@@ -112,6 +113,11 @@ export function RebuildCanvas({
         onPointerMove={camera.onPointerMove}
         onPointerUp={camera.onPointerUp}
         onPointerCancel={camera.onPointerUp}
+        onPointerDownCapture={camera.onPointerDownCapture}
+        onPointerMoveCapture={camera.onPointerMoveCapture}
+        onPointerUpCapture={camera.onPointerUpCapture}
+        onPointerCancelCapture={camera.onPointerUpCapture}
+        onClickCapture={camera.onClickCapture}
       >
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
           <div className="absolute top-0 left-0 origin-top-left" style={{ width: WORLD.width, height: WORLD.height, transform: camera.transform }}>

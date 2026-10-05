@@ -28,6 +28,59 @@ export function useCamera(viewportRef: React.RefObject<HTMLElement | null>, worl
   const fitted = useRef(false);
   const pan = useRef<{ px: number; py: number; x: number; y: number } | null>(null);
   const [panning, setPanning] = useState(false);
+  const touches = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ distance: number; x: number; y: number; camera: Camera } | null>(null);
+  const gestureRef = useRef(false);
+
+  const touchPair = () => {
+    const [a, b] = [...touches.current.values()];
+    if (!a || !b) return null;
+    return { distance: Math.hypot(b.x - a.x, b.y - a.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  };
+
+  const onPointerDownCapture = (e: React.PointerEvent) => {
+    if (e.pointerType !== "touch") return;
+    if (!touches.current.size) gestureRef.current = false;
+    touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const pair = touchPair();
+    if (!pair) return;
+    gestureRef.current = true;
+    pan.current = null;
+    pinch.current = { ...pair, camera: { ...cameraRef.current } };
+    e.preventDefault();
+    e.stopPropagation();
+    setPanning(true);
+  };
+
+  const onPointerMoveCapture = (e: React.PointerEvent) => {
+    if (!touches.current.has(e.pointerId)) return;
+    touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (!gestureRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const pair = touchPair();
+    const start = pinch.current;
+    const el = viewportRef.current;
+    if (!pair || !start || !el || start.distance < 1) return;
+    const rect = el.getBoundingClientRect();
+    const zoomed = zoomAt(start.camera, start.x - rect.left, start.y - rect.top, pair.distance / start.distance);
+    apply(panCamera(zoomed, pair.x - start.x, pair.y - start.y));
+  };
+
+  const onPointerUpCapture = (e: React.PointerEvent) => {
+    touches.current.delete(e.pointerId);
+    if (!gestureRef.current) return;
+    pinch.current = null;
+    pan.current = null;
+    setPanning(false);
+    // Let drag sensors receive the release; callers ignore this gesture's drag result.
+  };
+
+  const onClickCapture = (e: React.MouseEvent) => {
+    if (!gestureRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+  };
 
   const apply = useCallback(
     (next: Camera) => {
@@ -135,6 +188,11 @@ export function useCamera(viewportRef: React.RefObject<HTMLElement | null>, worl
     onPointerDown,
     onPointerMove,
     onPointerUp: endPan,
+    onPointerDownCapture,
+    onPointerMoveCapture,
+    onPointerUpCapture,
+    onClickCapture,
+    gestureRef,
     transform: cameraTransform(camera),
     minZoom: CAMERA.minZoom,
     maxZoom: CAMERA.maxZoom,
