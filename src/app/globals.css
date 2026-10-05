@@ -49,7 +49,7 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
+  --background: oklch(0.985 0.002 75);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -126,5 +126,81 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* ---------- Fuse motion. Individual transform properties compose with the card's own transform. ---------- */
+
+@keyframes fuse-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(220 38 38 / 0), 0 1px 2px rgb(0 0 0 / 0.05); }
+  50% { box-shadow: 0 0 0 6px rgb(220 38 38 / 0.12), 0 1px 2px rgb(0 0 0 / 0.05); }
+}
+
+@keyframes spark {
+  0%, 100% { opacity: 1; scale: 1; }
+  50% { opacity: 0.6; scale: 1.35; }
+}
+
+@keyframes card-complete {
+  0% { scale: 1; opacity: 1; }
+  30% { scale: 1.04; opacity: 1; }
+  100% { scale: 0.6; opacity: 0; translate: 0 -24px; }
+}
+
+@keyframes card-burst {
+  0% { scale: 1; opacity: 1; filter: brightness(1); }
+  25% { scale: 1.15; filter: brightness(1.6) saturate(1.4); }
+  100% { scale: 1.6; opacity: 0; filter: brightness(2) blur(6px); }
+}
+
+@keyframes card-fly {
+  0% { translate: 0 0; rotate: 0deg; opacity: 1; }
+  100% { translate: var(--fly-x) var(--fly-y); rotate: 28deg; opacity: 0; }
+}
+
+@keyframes fade-out {
+  to { opacity: 0; }
+}
+
+@keyframes board-shake {
+  0%, 100% { translate: 0 0; }
+  15% { translate: -10px 4px; }
+  30% { translate: 9px -6px; }
+  45% { translate: -7px 5px; }
+  60% { translate: 6px -3px; }
+  75% { translate: -3px 2px; }
+}
+
+@keyframes flash {
+  0% { opacity: 0; }
+  15% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+
+@keyframes rise-in {
+  from { opacity: 0; translate: 0 12px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@keyframes demo-grow {
+  0% { scale: 1; }
+  55% { scale: 1.08; }
+  80% { scale: 1.6; }
+  92% { scale: 2.1; }
+  100% { scale: 2.1; }
+}
+
+.board-paused {
+  filter: saturate(0.25);
+}
+
+.board-grid {
+  background-image: radial-gradient(circle, rgb(28 25 23 / 0.09) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-shake {
+    animation: none !important;
   }
 }
