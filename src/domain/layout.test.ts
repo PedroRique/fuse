@@ -80,6 +80,25 @@ describe("sortTasks", () => {
   ] as const)("%s orders %j", (by: BoardSort, ids) => {
     expect(sortTasks(tasks, [], now, by).map((t) => t.id)).toEqual([...ids]);
   });
+
+  it("parks completed cards at the end", () => {
+    const mixed = [
+      ...tasks,
+      task({
+        id: "done-critical",
+        impact: "critical",
+        fuseStartedAt: iso(T0),
+        deadlineAt: iso(T0 + 10 * 3_600_000),
+        status: "completed",
+      }),
+    ];
+    expect(sortTasks(mixed, [], now, "severity").map((t) => t.id)).toEqual([
+      "late-critical",
+      "mid-high",
+      "soon-low",
+      "done-critical",
+    ]);
+  });
 });
 
 describe("readingOrder", () => {

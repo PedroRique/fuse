@@ -12,7 +12,7 @@ const GAP = 32;
 const HEIGHT_FUDGE = 1.15;
 
 export function visualSize(scale: number) {
-  const s = Math.max(1, scale);
+  const s = Math.max(0.35, scale);
   return { w: CARD.width * s, h: CARD.height * HEIGHT_FUDGE * s };
 }
 
@@ -56,6 +56,8 @@ export function sortTasks(
   by: BoardSort,
 ): Task[] {
   return [...tasks].sort((a, b) => {
+    const done = Number(a.status === "completed") - Number(b.status === "completed");
+    if (done) return done;
     if (by === "severity") {
       const d = IMPACT_RANK[b.impact] - IMPACT_RANK[a.impact];
       if (d) return d;

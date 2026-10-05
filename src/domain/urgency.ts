@@ -8,6 +8,8 @@ export const URGENCY = {
   steepness: 3.2,
   /** Absolute max scale at 100%. The UI may clamp further to fit the viewport. */
   maxScale: 3.4,
+  /** Completed cards stay on the canvas, shrunk, so live fuses keep the stage. */
+  doneScale: 0.7,
   activeAt: 0.5,
   warningAt: 0.75,
   criticalAt: 0.9,
@@ -86,6 +88,10 @@ export function getTaskTemporalState(
     fuseMs: getFuseMs(task),
     isPaused: isPausedAt(pauses, now),
   };
+
+  if (task.status === "completed") {
+    return { ...base, state: "safe", scale: URGENCY.doneScale, heat: 0, isDormant: false, isFinalCountdown: false };
+  }
 
   if (task.status === "exploded" || (task.status === "active" && remainingMs <= 0)) {
     return { ...base, state: "exploded", scale: URGENCY.maxScale, heat: 1, isDormant: false, isFinalCountdown: false };

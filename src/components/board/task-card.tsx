@@ -5,7 +5,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { useNow } from "@/lib/clock";
 import type { BoardPause, Task } from "@/domain/types";
-import { getTaskTemporalState } from "@/domain/urgency";
+import { getTaskTemporalState, URGENCY } from "@/domain/urgency";
 import { formatCountdown } from "@/domain/time";
 import { CARD } from "@/domain/board";
 import { TaskCardFace, describeTemporal } from "./task-card-face";
@@ -83,7 +83,8 @@ export const TaskCard = memo(function TaskCard({
   const shift = containShift(x, y, scale, bounds);
   const dx = (transform?.x ?? 0) / zoom + shift.x;
   const dy = (transform?.y ?? 0) / zoom + shift.y;
-  const z = isDragging ? 100_000 : 10 + Math.round(temporal.progress * 1000) + (task.explosionCount > 0 ? 1 : 0);
+  const z = isDragging ? 100_000 : task.status === "completed" ? 2 : 10 + Math.round(temporal.progress * 1000) + (task.explosionCount > 0 ? 1 : 0);
+  const shrink = scale > 0 ? URGENCY.doneScale / scale : URGENCY.doneScale;
 
   const style: CSSProperties & Record<string, string | number> = {
     left: x,
@@ -92,6 +93,7 @@ export const TaskCard = memo(function TaskCard({
     "--z": z,
     "--fly-x": `${flyVector?.x ?? 0}px`,
     "--fly-y": `${flyVector?.y ?? 0}px`,
+    "--done-shrink": shrink,
   };
 
   const label = `${task.title}. ${describeTemporal(temporal, task)}. ${
@@ -107,7 +109,8 @@ export const TaskCard = memo(function TaskCard({
       aria-label={label}
       data-testid="task-card"
       data-task-id={task.id}
-      data-state={temporal.state}
+      data-state={task.status === "completed" ? "completed" : temporal.state}
+      data-status={task.status}
       data-fuse={Math.round(temporal.progress * 100)}
       data-scar={task.explosionCount}
       onClick={() => onOpen?.(task.id)}
@@ -125,7 +128,7 @@ export const TaskCard = memo(function TaskCard({
         "focus-visible:[&>div]:ring-3 focus-visible:[&>div]:ring-stone-900/40",
         !isDragging && motion === "idle" && "transition-transform duration-700 ease-out motion-reduce:transition-none",
         pending && "opacity-60",
-        motion === "leaving" && "pointer-events-none animate-[card-complete_900ms_ease-in_forwards] motion-reduce:animate-[fade-out_200ms_forwards]",
+        motion === "leaving" && "pointer-events-none animate-[card-complete_900ms_ease-in_forwards] motion-reduce:animate-none",
         motion === "exploding" && "pointer-events-none animate-[card-burst_700ms_ease-out_forwards] motion-reduce:animate-[fade-out_300ms_forwards]",
         motion === "flying" && "pointer-events-none animate-[card-fly_900ms_cubic-bezier(0.2,0.7,0.3,1)_forwards] motion-reduce:animate-[fade-out_300ms_forwards]",
       )}

@@ -22,7 +22,8 @@ test("2 · complete task → leaves the board → shows in history", async ({ pa
   const dialog = await openCard(page, "Buy a gift");
   await dialog.getByRole("button", { name: "MARK AS DONE" }).click();
   await expect(page.getByTestId("complete-stamp")).toBeVisible();
-  await expect(card(page, "Buy a gift")).toHaveCount(0);
+  await expect(card(page, "Buy a gift")).toHaveAttribute("data-status", "completed");
+  await expect(card(page, "Buy a gift")).toBeVisible();
   await page.getByRole("link", { name: "History" }).click();
   const item = page.getByTestId("history-item").filter({ hasText: "Buy a gift" }).first();
   await expect(item).toContainText("Completed without explosions");

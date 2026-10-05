@@ -136,6 +136,7 @@ function Details({
   }
 
   const locked = t.progress >= CRITICAL_EDIT_THRESHOLD;
+  const completed = task.status === "completed";
 
   return (
     <>
@@ -150,7 +151,7 @@ function Details({
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border bg-muted/40 p-3 text-sm">
           <Stat label="Remaining">
             <span className={t.isFinalCountdown ? "font-mono font-bold text-red-800" : "font-mono"} data-testid="details-remaining">
-              {formatCountdown(t.remainingMs)}
+              {completed ? "Out" : formatCountdown(t.remainingMs)}
             </span>
           </Stat>
           <Stat label="Fuse burned">{Math.round(t.progress * 100)}%</Stat>
@@ -163,7 +164,7 @@ function Details({
             <span data-testid="details-explosions">{task.explosionCount}</span>
           </Stat>
           <Stat label="Created">{format(new Date(task.createdAt), "d MMM yyyy · HH:mm")}</Stat>
-          {t.isPaused && <Stat label="Status">Board paused</Stat>}
+          {completed && task.completedAt && <Stat label="Completed">{format(new Date(task.completedAt), "d MMM yyyy · HH:mm")}</Stat>}
         </dl>
       ) : (
         <div className="space-y-4">
@@ -201,22 +202,26 @@ function Details({
       )}
 
       {!editing ? (
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Button
-            size="lg"
-            className="flex-1 bg-emerald-700 tracking-[0.15em] text-white hover:bg-emerald-800"
-            onClick={markDone}
-            disabled={!!busy || !online || task.status !== "active"}
-          >
-            <Check aria-hidden /> {busy === "done" ? "SAVING…" : "MARK AS DONE"}
-          </Button>
-          <Button size="lg" variant="outline" className="flex-1 tracking-[0.15em]" onClick={() => onCutWire(task.id)} disabled={!!busy || !online || task.status !== "active"}>
-            <Scissors aria-hidden /> CUT THE WIRE
-          </Button>
-          <Button size="lg" variant="ghost" onClick={() => setEditing(true)} aria-label="Edit task" disabled={task.status !== "active"}>
-            <Pencil aria-hidden />
-          </Button>
-        </div>
+        completed ? (
+          <p className="text-sm text-emerald-800">This fuse is out. It stays on the board as a reminder you did the thing.</p>
+        ) : (
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              size="lg"
+              className="flex-1 bg-emerald-700 tracking-[0.15em] text-white hover:bg-emerald-800"
+              onClick={markDone}
+              disabled={!!busy || !online || task.status !== "active"}
+            >
+              <Check aria-hidden /> {busy === "done" ? "SAVING…" : "MARK AS DONE"}
+            </Button>
+            <Button size="lg" variant="outline" className="flex-1 tracking-[0.15em]" onClick={() => onCutWire(task.id)} disabled={!!busy || !online || task.status !== "active"}>
+              <Scissors aria-hidden /> CUT THE WIRE
+            </Button>
+            <Button size="lg" variant="ghost" onClick={() => setEditing(true)} aria-label="Edit task" disabled={task.status !== "active"}>
+              <Pencil aria-hidden />
+            </Button>
+          </div>
+        )
       ) : (
         <div className="flex gap-2">
           <Button className="flex-1" onClick={save} disabled={!!busy || !online}>

@@ -142,10 +142,10 @@
 }
 
 @keyframes card-complete {
-  0% { scale: 1; opacity: 1; filter: brightness(1); }
+  0% { scale: 1; filter: brightness(1); }
   18% { scale: 1.12; filter: brightness(1.15); }
-  42% { scale: 1.06; }
-  100% { scale: 0.78; opacity: 0; translate: 0 -80px; }
+  42% { scale: 1; }
+  100% { scale: var(--done-shrink, 0.7); filter: brightness(1); }
 }
 
 @keyframes check-pop {

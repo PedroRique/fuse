@@ -47,7 +47,7 @@ export async function loadBoard(): Promise<BoardSnapshot> {
   if (error) throw error;
 
   const [tasks, pauses, incident] = await Promise.all([
-    supabase.from("tasks").select("*").in("status", ["active", "exploded"]).order("created_at"),
+    supabase.from("tasks").select("*").in("status", ["active", "exploded", "completed"]).order("created_at"),
     // ponytail: all pauses of the board; fine for years of usage, filter by date if it ever grows large.
     supabase.from("board_pauses").select("*").order("started_at"),
     supabase

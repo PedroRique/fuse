@@ -5,7 +5,7 @@ import type { BoardPause } from "./types";
 const H = 3_600_000;
 const T0 = Date.parse("2026-03-01T10:00:00.000Z");
 const iso = (t: number) => new Date(t).toISOString();
-const task = (fuseMs = 100 * H, extra: Partial<{ botherAfter: string; status: "active" | "exploded" }> = {}) => ({
+const task = (fuseMs = 100 * H, extra: Partial<{ botherAfter: string; status: "active" | "exploded" | "completed" }> = {}) => ({
   fuseStartedAt: iso(T0),
   deadlineAt: iso(T0 + fuseMs),
   botherAfter: extra.botherAfter ?? null,
@@ -142,6 +142,13 @@ describe("getTaskTemporalState", () => {
 
   it("reports exploded status regardless of time", () => {
     expect(getTaskTemporalState(task(100 * H, { status: "exploded" }), [], at(0.1)).state).toBe("exploded");
+  });
+
+  it("completed cards sit small and cold, even if the fuse would have been hot", () => {
+    const s = getTaskTemporalState(task(2 * H, { status: "completed" }), [], T0 + 1.5 * H);
+    expect(s.scale).toBe(URGENCY.doneScale);
+    expect(s.heat).toBe(0);
+    expect(s.state).toBe("safe");
   });
 });
 

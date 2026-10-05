@@ -139,8 +139,15 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
 
   const motions = useMemo(() => {
     const m: Record<string, CardMotion> = {};
-    for (const id of leaving) m[id] = "leaving";
-    if (exploding) for (const t of tasks) m[t.id] = exploding.ids.has(t.id) ? "exploding" : "flying";
+    for (const t of tasks) {
+      if (leaving.has(t.id) && t.status !== "completed") m[t.id] = "leaving";
+    }
+    if (exploding) {
+      for (const t of tasks) {
+        if (t.status === "completed") continue;
+        m[t.id] = exploding.ids.has(t.id) ? "exploding" : "flying";
+      }
+    }
     return m;
   }, [leaving, exploding, tasks]);
 
@@ -149,7 +156,7 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
 
   const destroyed = incident?.phase === "post_mortem";
   const rebuilding = incident?.phase === "rebuilding";
-  const activeTasks = tasks.filter((t) => t.status === "active" || exploding?.ids.has(t.id));
+  const boardTasks = tasks.filter((t) => t.status === "active" || t.status === "completed" || exploding?.ids.has(t.id));
   const pendingPostMortems = incident
     ? incident.tasks
         .filter((t) => t.exploded && !t.postMortemDone)
@@ -159,17 +166,17 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
   const blocked = destroyed || rebuilding;
 
   const onTidy = useCallback(() => {
-    void layoutTasks(readingOrder(activeTasks, positions));
-  }, [layoutTasks, activeTasks, positions]);
+    void layoutTasks(readingOrder(boardTasks, positions));
+  }, [layoutTasks, boardTasks, positions]);
 
   const onSort = useCallback(
     (by: BoardSort) => {
-      void layoutTasks(sortTasks(activeTasks, pauses, getNow(), by));
+      void layoutTasks(sortTasks(boardTasks, pauses, getNow(), by));
     },
-    [layoutTasks, activeTasks, pauses],
+    [layoutTasks, boardTasks, pauses],
   );
 
-  const detailsTask = tasks.find((t) => t.id === detailsId && t.status === "active") ?? null;
+  const detailsTask = tasks.find((t) => t.id === detailsId && (t.status === "active" || t.status === "completed")) ?? null;
   const cutWireTask = tasks.find((t) => t.id === cutWire?.id && t.status === "active") ?? null;
 
   const getNextDeadlineInMs = useCallback(() => {
@@ -200,7 +207,7 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
         onSort={onSort}
         newTaskDisabled={blocked || !online}
         emergencyDisabled={blocked || !!activePause || !online}
-        arrangeDisabled={blocked || !online || activeTasks.length === 0}
+        arrangeDisabled={blocked || !online || boardTasks.length === 0}
       />
       {!online && (
         <div role="status" className="flex items-center justify-center gap-2 border-b bg-amber-50 px-4 py-2 text-sm text-amber-900">
@@ -234,7 +241,7 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
         <>
           {exploding && !reducedMotion && <div aria-hidden className="pointer-events-none fixed inset-0 z-[150000] animate-[flash_700ms_ease-out_forwards] bg-amber-50" />}
           <BoardCanvas
-            tasks={destroyed && !exploding ? [] : activeTasks}
+            tasks={destroyed && !exploding ? [] : boardTasks}
             pauses={pauses}
             positions={positions}
             motions={motions}
