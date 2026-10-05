@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpDown, LayoutGrid, LogOut, Plus, Siren } from "lucide-react";
+import { ArrowUpDown, Check, Eye, EyeOff, LayoutGrid, LogOut, Plus, Siren } from "lucide-react";
 import { Menu } from "@base-ui/react/menu";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { signOut } from "@/server/actions";
@@ -21,6 +21,10 @@ export function AppHeader({
   newTaskDisabled,
   emergencyDisabled,
   arrangeDisabled,
+  sortBy,
+  hideCompleted,
+  completedCount = 0,
+  onToggleCompleted,
 }: {
   active: "board" | "history";
   onNewTask?: () => void;
@@ -30,9 +34,13 @@ export function AppHeader({
   newTaskDisabled?: boolean;
   emergencyDisabled?: boolean;
   arrangeDisabled?: boolean;
+  sortBy?: BoardSort;
+  hideCompleted?: boolean;
+  completedCount?: number;
+  onToggleCompleted?: () => void;
 }) {
   return (
-    <header className="flex items-center gap-2 border-b bg-background/90 px-3 py-2.5 backdrop-blur sm:gap-4 sm:px-6">
+    <header className="flex flex-wrap items-center gap-2 border-b bg-background/90 px-3 py-2.5 backdrop-blur sm:gap-4 sm:px-6">
       <Link href="/board" className="mr-1 font-mono text-sm font-semibold tracking-[0.3em] sm:mr-4">
         FUSE
       </Link>
@@ -57,6 +65,9 @@ export function AppHeader({
         ))}
       </nav>
       <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+        {onToggleCompleted && <Button variant="outline" onClick={onToggleCompleted} aria-pressed={hideCompleted} aria-label={hideCompleted ? `Show completed tasks (${completedCount})` : `Hide completed tasks (${completedCount})`} title={hideCompleted ? "Show completed tasks" : "Hide completed tasks"}>
+          {hideCompleted ? <EyeOff aria-hidden /> : <Eye aria-hidden />}<span className="hidden sm:inline">Done ({completedCount})</span>
+        </Button>}
         {onTidy && (
           <Button variant="outline" onClick={onTidy} disabled={arrangeDisabled} data-testid="tidy-board" aria-label="Tidy board">
             <LayoutGrid aria-hidden /> <span className="hidden sm:inline">Tidy</span>
@@ -81,7 +92,7 @@ export function AppHeader({
                       onClick={() => onSort(s.value)}
                       className="flex cursor-default flex-col rounded-md px-2.5 py-1.5 text-sm outline-none select-none data-highlighted:bg-muted"
                     >
-                      <span className="font-medium">{s.label}</span>
+                      <span className="flex items-center gap-2 font-medium">{s.label}{sortBy === s.value && <Check className="size-3" aria-label="Selected" />}</span>
                       <span className="text-xs text-muted-foreground">{s.hint}</span>
                     </Menu.Item>
                   ))}

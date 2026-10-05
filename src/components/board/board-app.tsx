@@ -28,6 +28,7 @@ import { moveTask, syncBoard } from "@/server/actions";
 import type { Task } from "@/domain/types";
 import { settleDrop } from "@/domain/drop-layout";
 import { visualSize } from "@/domain/layout";
+import { useBoardPreferences } from "@/lib/board-preferences";
 
 export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
   const router = useRouter();
@@ -46,7 +47,7 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [cutWire, setCutWire] = useState<{ id: string; desiredEnd?: Date } | null>(null);
   const [restored, setRestored] = useState(false);
-  const sortBy = useRef<BoardSort>("deadline");
+  const preferences = useBoardPreferences();
   const pendingArrangement = useRef<string | null>(null);
   const onCreated = useCallback((taskId: string) => {
     pendingArrangement.current = taskId;
@@ -100,7 +101,7 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
   }, [tasks, moved, incidentKey]);
   const onMove = useCallback(
     async (id: string, x: number, y: number, sizes: Record<string, { width: number; height: number }>) => {
-      const cards = tasks.filter((t) => t.status === "active" || t.status === "completed").map((t) => {
+      const cards = tasks.filter((t) => t.status === "active" || (t.status === "completed" && !preferences.hideCompleted)).map((t) => {
         const size = visualSize(getTaskTemporalState(t, pauses, getNow()).scale);
         return { id: t.id, ...positions[t.id], ...(sizes[t.id] ?? { width: size.w, height: size.h }) };
       });
@@ -119,7 +120,7 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
         refresh();
       }
     },
-    [incidentKey, tasks, pauses, positions, refresh],
+    [incidentKey, tasks, pauses, positions, refresh, preferences.hideCompleted],
   );
 
   const layoutTasks = useCallback(
@@ -173,7 +174,7 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
 
   const destroyed = incident?.phase === "post_mortem";
   const rebuilding = incident?.phase === "rebuilding";
-  const boardTasks = tasks.filter((t) => t.status === "active" || t.status === "completed" || exploding?.ids.has(t.id));
+  const boardTasks = tasks.filter((t) => t.status === "active" || (t.status === "completed" && !preferences.hideCompleted) || exploding?.ids.has(t.id));
   const pendingPostMortems = incident
     ? incident.tasks
         .filter((t) => t.exploded && !t.postMortemDone)
@@ -188,10 +189,10 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
 
   const onSort = useCallback(
     (by: BoardSort) => {
-      sortBy.current = by;
+      preferences.update({ sort: by });
       void layoutTasks(sortTasks(boardTasks, pauses, getNow(), by));
     },
-    [layoutTasks, boardTasks, pauses],
+    [layoutTasks, boardTasks, pauses, preferences],
   );
 
   // Wait for the refreshed snapshot so the new card participates in the layout.
@@ -200,9 +201,9 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
     if (!id || !tasks.some((t) => t.id === id)) return;
     pendingArrangement.current = null;
     if (blocked || !online) return;
-    const visible = tasks.filter((t) => t.status === "active" || t.status === "completed");
-    void layoutTasks(sortTasks(visible, pauses, getNow(), sortBy.current));
-  }, [tasks, pauses, blocked, online, layoutTasks]);
+    const visible = tasks.filter((t) => t.status === "active" || (t.status === "completed" && !preferences.hideCompleted));
+    void layoutTasks(sortTasks(visible, pauses, getNow(), preferences.sort));
+  }, [tasks, pauses, blocked, online, layoutTasks, preferences.hideCompleted, preferences.sort]);
 
   const detailsTask = tasks.find((t) => t.id === detailsId && (t.status === "active" || t.status === "completed")) ?? null;
   const cutWireTask = tasks.find((t) => t.id === cutWire?.id && t.status === "active") ?? null;
@@ -233,6 +234,10 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
         onEmergency={() => setPauseOpen(true)}
         onTidy={onTidy}
         onSort={onSort}
+        sortBy={preferences.sort}
+        hideCompleted={preferences.hideCompleted}
+        completedCount={tasks.filter((t) => t.status === "completed").length}
+        onToggleCompleted={() => preferences.update({ hideCompleted: !preferences.hideCompleted })}
         newTaskDisabled={blocked || !online}
         emergencyDisabled={blocked || !!activePause || !online}
         arrangeDisabled={blocked || !online || boardTasks.length === 0}
