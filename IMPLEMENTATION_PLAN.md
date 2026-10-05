@@ -24,16 +24,16 @@ UI (React, canvas, dialogs)
 |---|-------|--------|
 | 0 | Foundation (Next 16, TS strict, Tailwind 4, shadcn, Vitest, Playwright, local Supabase) | done |
 | 1 | Domain engine + unit tests | done |
-| 2 | Database, RLS, RPCs, Auth, isolation test | pending |
-| 3 | Basic board (shell, empty state, canvas, drag, persistence) | pending |
-| 4 | Create + details + done + history | pending |
-| 5 | Live urgency + dev time travel | pending |
-| 6 | Cut the wire | pending |
-| 7 | Emergency pause | pending |
-| 8 | Explosion | pending |
-| 9 | Post-mortem + rebuild | pending |
-| 10 | Onboarding + polish + PWA | pending |
-| 11 | QA (E2E + manual) | pending |
+| 2 | Database, RLS, RPCs, Auth, isolation test | done |
+| 3 | Basic board (shell, empty state, canvas, drag, persistence) | done |
+| 4 | Create + details + done + history | done |
+| 5 | Live urgency + dev time travel | done |
+| 6 | Cut the wire | done |
+| 7 | Emergency pause | done |
+| 8 | Explosion | done |
+| 9 | Post-mortem + rebuild | done |
+| 10 | Onboarding + polish + PWA | done |
+| 11 | QA (E2E + manual) | done |
 
 ## Time model
 
@@ -68,8 +68,11 @@ States: safe < 50% ≤ active < 75% ≤ warning < 90% ≤ critical; final countd
 12. Extra event types `post_mortem` and `board_restored` were added for analytics completeness.
 13. Board events (`emergency_pause_*`, `board_restored`) live in the same `task_events` table with `task_id` null.
 14. Canvas overlap is allowed. Most urgent cards sit on top; hover/focus/drag raise a card to the very top; covered cards remain reachable via Tab.
+15. A grown card is shifted (visually only) so it never spills outside the board; its stored position stays the center the user chose.
+16. PWA is installable (manifest + SVG icon + service worker registered in production only). The service worker is network-only: fuses are server-authoritative, so no offline cache of the board.
 
 ## Known limits (ponytail)
 
 - Canvas renders every card; boards with hundreds of cards would need virtualization.
+- Service worker caches nothing; offline shows the offline guard instead of a cached board.
 - Dev clock offset is global to the local database (E2E runs serially).
