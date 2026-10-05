@@ -44,6 +44,12 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [cutWire, setCutWire] = useState<{ id: string; desiredEnd?: Date } | null>(null);
   const [restored, setRestored] = useState(false);
+  const sortBy = useRef<BoardSort>("deadline");
+  const pendingArrangement = useRef<string | null>(null);
+  const onCreated = useCallback((taskId: string) => {
+    pendingArrangement.current = taskId;
+    refresh();
+  }, [refresh]);
 
   // Timestamps are the truth; timers only repaint. Coming back to the tab re-syncs with the server.
   useEffect(() => {
@@ -115,6 +121,7 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
       const results = await Promise.all(Object.entries(next).map(([id, p]) => moveTask({ taskId: id, x: p.x, y: p.y })));
       const fail = results.find((r) => !r.ok);
       if (fail && !fail.ok) {
+        setMoved({ key: incidentKey, map: {} });
         toast.error("Couldn't rearrange the board.", { description: fail.error });
         refresh();
       }
@@ -171,10 +178,21 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
 
   const onSort = useCallback(
     (by: BoardSort) => {
+      sortBy.current = by;
       void layoutTasks(sortTasks(boardTasks, pauses, getNow(), by));
     },
     [layoutTasks, boardTasks, pauses],
   );
+
+  // Wait for the refreshed snapshot so the new card participates in the layout.
+  useEffect(() => {
+    const id = pendingArrangement.current;
+    if (!id || !tasks.some((t) => t.id === id)) return;
+    pendingArrangement.current = null;
+    if (blocked || !online) return;
+    const visible = tasks.filter((t) => t.status === "active" || t.status === "completed");
+    void layoutTasks(sortTasks(visible, pauses, getNow(), sortBy.current));
+  }, [tasks, pauses, blocked, online, layoutTasks]);
 
   const detailsTask = tasks.find((t) => t.id === detailsId && (t.status === "active" || t.status === "completed")) ?? null;
   const cutWireTask = tasks.find((t) => t.id === cutWire?.id && t.status === "active") ?? null;
@@ -262,7 +280,7 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
         open={createOpen}
         onOpenChange={setCreateOpen}
         position={getNewTaskPosition(Object.values(positions))}
-        onCreated={refresh}
+        onCreated={onCreated}
         disabled={!online}
       />
       <TaskDetailsDialog

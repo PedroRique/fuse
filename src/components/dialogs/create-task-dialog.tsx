@@ -66,7 +66,7 @@ export function CreateTaskDialog({
   open: boolean;
   onOpenChange: (o: boolean) => void;
   position: { x: number; y: number };
-  onCreated: () => void;
+  onCreated: (taskId: string) => void;
   disabled?: boolean;
 }) {
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -95,7 +95,7 @@ export function CreateTaskDialog({
     toast.success("Fuse lit.", { description: v.title });
     reset(defaults());
     onOpenChange(false);
-    onCreated();
+    onCreated(String(res.data?.taskId));
   });
 
   return (
