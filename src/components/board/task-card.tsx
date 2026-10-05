@@ -7,6 +7,7 @@ import { useNow } from "@/lib/clock";
 import type { BoardPause, Task } from "@/domain/types";
 import { getTaskTemporalState } from "@/domain/urgency";
 import { formatCountdown } from "@/domain/time";
+import { CARD } from "@/domain/board";
 import { TaskCardFace, describeTemporal } from "./task-card-face";
 
 export type CardMotion = "idle" | "leaving" | "exploding" | "flying";
@@ -27,7 +28,22 @@ type Props = {
   onKeyboardPlace?: (id: string) => void;
   /** Direction cards fly when the board explodes. */
   flyVector?: { x: number; y: number };
+  /** Keep the grown card visually inside this area (the saved position is untouched). */
+  bounds?: { width: number; height: number };
 };
+
+const EDGE = 12;
+const EST_HEIGHT = CARD.height * 1.2;
+
+/** How far to nudge a scaled card so it doesn't spill past the board edges. */
+function containShift(x: number, y: number, scale: number, bounds?: { width: number; height: number }) {
+  if (!bounds) return { x: 0, y: 0 };
+  const hw = (CARD.width * scale) / 2 + EDGE;
+  const hh = (EST_HEIGHT * scale) / 2 + EDGE;
+  const fit = (c: number, half: number, size: number) =>
+    half * 2 >= size ? size / 2 - c : c - half < 0 ? half - c : c + half > size ? size - half - c : 0;
+  return { x: fit(x, hw, bounds.width), y: fit(y, hh, bounds.height) };
+}
 
 /**
  * A card on a canvas. Subscribes to the clock itself so only this card re-renders per tick.
@@ -47,6 +63,7 @@ export const TaskCard = memo(function TaskCard({
   onDue,
   onKeyboardPlace,
   flyVector,
+  bounds,
 }: Props) {
   const now = useNow();
   const temporal = getTaskTemporalState(task, pauses, now || Date.parse(task.fuseStartedAt));
@@ -62,8 +79,9 @@ export const TaskCard = memo(function TaskCard({
   });
 
   const scale = Math.min(temporal.scale, maxScale);
-  const dx = (transform?.x ?? 0) / zoom;
-  const dy = (transform?.y ?? 0) / zoom;
+  const shift = containShift(x, y, scale, bounds);
+  const dx = (transform?.x ?? 0) / zoom + shift.x;
+  const dy = (transform?.y ?? 0) / zoom + shift.y;
   const z = isDragging ? 100_000 : 10 + Math.round(temporal.progress * 1000) + (task.explosionCount > 0 ? 1 : 0);
 
   const style: CSSProperties & Record<string, string | number> = {

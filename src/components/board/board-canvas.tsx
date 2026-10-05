@@ -87,7 +87,7 @@ export function BoardCanvas({ tasks, pauses, positions, motions, paused, shaking
     {tasks.length === 0 && empty}
     <div
       ref={viewportRef}
-      className={cn("relative min-h-0 flex-1 overflow-auto overscroll-contain", paused && "board-paused")}
+      className={cn("relative isolate min-h-0 flex-1 overflow-auto overscroll-contain", paused && "board-paused")}
       aria-label="Task board"
       role="region"
     >
@@ -107,6 +107,7 @@ export function BoardCanvas({ tasks, pauses, positions, motions, paused, shaking
                 x={p.x}
                 y={p.y}
                 maxScale={maxScale}
+                bounds={BOARD}
                 draggable={interactive}
                 motion={motion}
                 flyVector={motion === "flying" ? flyVector(p.x, p.y) : undefined}

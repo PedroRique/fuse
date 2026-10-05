@@ -11,7 +11,7 @@ import { IMPACT_EDGE, ImpactBadge } from "./impact-badge";
 import { SCAR_CLIP, TaskScarOverlay } from "./task-scar-overlay";
 
 const STATE_META = {
-  safe: { label: "Plenty of time", Icon: Wind },
+  safe: { label: "On track", Icon: Wind },
   active: { label: "Heating up", Icon: AlarmClock },
   warning: { label: "Warning", Icon: TriangleAlert },
   critical: { label: "Critical", Icon: Flame },
@@ -64,7 +64,7 @@ export function TaskCardFace({
     >
       <TaskScarOverlay level={scar} />
 
-      <div className="relative flex items-center justify-between gap-2 text-[11px] font-medium tracking-wide uppercase">
+      <div className="relative flex items-center justify-between gap-2 text-[11px] font-medium tracking-wide whitespace-nowrap uppercase">
         <span
           className={cn(
             "inline-flex items-center gap-1",
