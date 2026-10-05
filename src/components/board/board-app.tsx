@@ -26,6 +26,8 @@ import type { BoardSnapshot } from "@/server/queries";
 import { completeToast, playCompleteChime } from "@/lib/celebrate";
 import { moveTask, syncBoard } from "@/server/actions";
 import type { Task } from "@/domain/types";
+import { settleDrop } from "@/domain/drop-layout";
+import { visualSize } from "@/domain/layout";
 
 export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
   const router = useRouter();
@@ -97,19 +99,27 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
     return Object.fromEntries(tasks.map((t) => [t.id, overrides[t.id] ?? { x: t.positionX, y: t.positionY }]));
   }, [tasks, moved, incidentKey]);
   const onMove = useCallback(
-    async (id: string, x: number, y: number) => {
-      setMoved((m) => ({ key: incidentKey, map: { ...(m.key === incidentKey ? m.map : {}), [id]: { x, y } } }));
-      const res = await moveTask({ taskId: id, x, y });
-      if (!res.ok) {
-        setMoved((m) => {
-          const map = { ...m.map };
-          delete map[id];
-          return { ...m, map };
-        });
-        toast.error("Couldn't move that card.", { description: res.error });
+    async (id: string, x: number, y: number, sizes: Record<string, { width: number; height: number }>) => {
+      const cards = tasks.filter((t) => t.status === "active" || t.status === "completed").map((t) => {
+        const size = visualSize(getTaskTemporalState(t, pauses, getNow()).scale);
+        return { id: t.id, ...positions[t.id], ...(sizes[t.id] ?? { width: size.w, height: size.h }) };
+      });
+      const next = settleDrop(cards, id, x, y);
+      if (!next) {
+        toast.error("Not enough room for this move.", { description: "Zoom out or tidy the board first." });
+        return;
+      }
+      setMoved({ key: incidentKey, map: next });
+      const changes = Object.entries(next).filter(([key, p]) => p.x !== positions[key]?.x || p.y !== positions[key]?.y);
+      const results = await Promise.all(changes.map(([taskId, p]) => moveTask({ taskId, ...p })));
+      const failure = results.find((r) => !r.ok);
+      if (failure && !failure.ok) {
+        setMoved({ key: incidentKey, map: {} });
+        toast.error("Couldn't rearrange the cards.", { description: failure.error });
+        refresh();
       }
     },
-    [incidentKey],
+    [incidentKey, tasks, pauses, positions, refresh],
   );
 
   const layoutTasks = useCallback(

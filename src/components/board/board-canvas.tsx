@@ -55,7 +55,7 @@ type Props = {
   paused: boolean;
   shaking: boolean;
   interactive: boolean;
-  onMove: (id: string, x: number, y: number) => void;
+  onMove: (id: string, x: number, y: number, sizes: Record<string, { width: number; height: number }>) => void;
   onOpen: (id: string) => void;
   onDue: (id: string) => void;
   empty: React.ReactNode;
@@ -86,7 +86,12 @@ export function BoardCanvas({ tasks, pauses, positions, motions, paused, shaking
       if (!from || (e.delta.x === 0 && e.delta.y === 0)) return;
       const z = camera.cameraRef.current.zoom;
       const to = clampToBoard(from.x + e.delta.x / z, from.y + e.delta.y / z);
-      onMove(id, to.x, to.y);
+      const sizes: Record<string, { width: number; height: number }> = {};
+      viewportRef.current?.querySelectorAll<HTMLElement>("[data-task-id]").forEach((card) => {
+        const rect = card.getBoundingClientRect();
+        sizes[card.dataset.taskId!] = { width: rect.width / z, height: rect.height / z };
+      });
+      onMove(id, to.x, to.y, sizes);
     },
     [positions, onMove, camera.cameraRef, camera.gestureRef],
   );
