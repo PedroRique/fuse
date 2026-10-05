@@ -64,7 +64,7 @@ export function BoardCanvas({ tasks, pauses, positions, motions, paused, shaking
   const maxScale = useMaxScale(viewportRef);
   const sensors = useCardSensors();
   const lastDragEnd = useRef(0);
-  const camera = useCamera(viewportRef, BOARD);
+  const camera = useCamera(viewportRef, BOARD, true);
 
   const handleDragEnd = useCallback(
     (e: DragEndEvent) => {

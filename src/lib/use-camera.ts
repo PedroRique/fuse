@@ -6,6 +6,7 @@ import {
   cameraTransform,
   clampCamera,
   fitCamera,
+  fitBounds,
   panCamera,
   zoomAt,
   type Camera,
@@ -22,7 +23,7 @@ function isOnCard(target: EventTarget | null) {
   return target instanceof Element && !!target.closest("[data-testid='task-card']");
 }
 
-export function useCamera(viewportRef: React.RefObject<HTMLElement | null>, world: { width: number; height: number }) {
+export function useCamera(viewportRef: React.RefObject<HTMLElement | null>, world: { width: number; height: number }, fitContent = false) {
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 });
   const cameraRef = useRef(camera);
   const fitted = useRef(false);
@@ -98,8 +99,27 @@ export function useCamera(viewportRef: React.RefObject<HTMLElement | null>, worl
     const el = viewportRef.current;
     if (!el) return;
     const { w, h } = sizeOf(el);
+    if (fitContent) {
+      const cards = [...el.querySelectorAll<HTMLElement>("[data-testid='task-card']")];
+      if (cards.length) {
+        const viewport = el.getBoundingClientRect();
+        const cam = cameraRef.current;
+        const rects = cards.map((card) => card.getBoundingClientRect());
+        const left = Math.min(...rects.map((r) => r.left));
+        const top = Math.min(...rects.map((r) => r.top));
+        const right = Math.max(...rects.map((r) => r.right));
+        const bottom = Math.max(...rects.map((r) => r.bottom));
+        apply(fitBounds(w, h, {
+          x: (left - viewport.left - cam.x) / cam.zoom,
+          y: (top - viewport.top - cam.y) / cam.zoom,
+          width: (right - left) / cam.zoom,
+          height: (bottom - top) / cam.zoom,
+        }));
+        return;
+      }
+    }
     apply(fitCamera(w, h, world.width, world.height));
-  }, [apply, viewportRef, world.width, world.height]);
+  }, [apply, viewportRef, world.width, world.height, fitContent]);
 
   useEffect(() => {
     const el = viewportRef.current;

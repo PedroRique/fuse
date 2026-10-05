@@ -1,5 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { CAMERA, clampCamera, fitCamera, panCamera, zoomAt } from "./camera";
+import { CAMERA, clampCamera, fitBounds, fitCamera, panCamera, zoomAt } from "./camera";
+
+describe("fitBounds", () => {
+  it("centers an offset group of cards with padding", () => {
+    const cam = fitBounds(800, 600, { x: 400, y: 300, width: 600, height: 400 });
+    expect(400 * cam.zoom + cam.x).toBeGreaterThanOrEqual(CAMERA.pad);
+    expect(1000 * cam.zoom + cam.x).toBeLessThanOrEqual(800 - CAMERA.pad);
+    expect(700 * cam.zoom + cam.x).toBeCloseTo(400);
+    expect(500 * cam.zoom + cam.y).toBeCloseTo(300);
+  });
+
+  it("caps the zoom for a single small card", () => {
+    expect(fitBounds(1600, 900, { x: 200, y: 100, width: 100, height: 60 }).zoom).toBe(CAMERA.maxZoom);
+  });
+});
 
 describe("fitCamera", () => {
   it("fits the world inside the viewport and centers it", () => {
