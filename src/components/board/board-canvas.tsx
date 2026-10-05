@@ -105,8 +105,8 @@ export function BoardCanvas({ tasks, pauses, positions, motions, paused, shaking
   );
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
-      <div className="relative z-[200001] border-b bg-background px-3 py-2">
+    <div className="relative isolate z-0 flex min-h-0 flex-1 flex-col">
+      <div className="relative z-20 border-b bg-background px-3 py-2">
         <form className="mx-auto flex max-w-xl items-center gap-2" role="search" onSubmit={(e) => { e.preventDefault(); if (matches.length) locate(matches[0].id); }}>
           <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden />
           <Input type="search" aria-label="Find a task by title" placeholder="Find a task by title…" value={query}
