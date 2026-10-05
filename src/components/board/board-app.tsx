@@ -23,6 +23,7 @@ import { getNewTaskPosition } from "@/domain/board";
 import { packCards, readingOrder, sortTasks, type BoardSort } from "@/domain/layout";
 import { getTaskTemporalState } from "@/domain/urgency";
 import type { BoardSnapshot } from "@/server/queries";
+import { completeToast, playCompleteChime } from "@/lib/celebrate";
 import { moveTask, syncBoard } from "@/server/actions";
 import type { Task } from "@/domain/types";
 
@@ -128,10 +129,12 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
       setDetailsId(null);
       setLeaving((s) => new Set(s).add(id));
       const t = tasks.find((x) => x.id === id);
-      toast.success("Done.", { description: t?.explosionCount ? `Completed after ${t.explosionCount} explosion${t.explosionCount > 1 ? "s" : ""}. The scars stay in your history.` : t?.title });
-      setTimeout(refresh, 450);
+      playCompleteChime();
+      const copy = completeToast(t?.title ?? "Task", t?.explosionCount ?? 0);
+      toast.success(copy.title, { description: copy.description, duration: 4200 });
+      setTimeout(refresh, reducedMotion ? 220 : 1000);
     },
-    [tasks, refresh],
+    [tasks, refresh, reducedMotion],
   );
 
   const motions = useMemo(() => {

@@ -142,9 +142,27 @@
 }
 
 @keyframes card-complete {
-  0% { scale: 1; opacity: 1; }
-  30% { scale: 1.04; opacity: 1; }
-  100% { scale: 0.6; opacity: 0; translate: 0 -24px; }
+  0% { scale: 1; opacity: 1; filter: brightness(1); }
+  18% { scale: 1.12; filter: brightness(1.15); }
+  42% { scale: 1.06; }
+  100% { scale: 0.78; opacity: 0; translate: 0 -80px; }
+}
+
+@keyframes check-pop {
+  0% { scale: 0.2; opacity: 0; rotate: -18deg; }
+  55% { scale: 1.18; opacity: 1; rotate: 8deg; }
+  100% { scale: 1; opacity: 1; rotate: 0deg; }
+}
+
+@keyframes stamp-ring {
+  0% { scale: 0.5; opacity: 0.7; }
+  100% { scale: 1.9; opacity: 0; }
+}
+
+@keyframes complete-wash {
+  0% { opacity: 0; }
+  25% { opacity: 1; }
+  100% { opacity: 0.35; }
 }
 
 @keyframes card-burst {

@@ -9,6 +9,7 @@ import { getTaskTemporalState } from "@/domain/urgency";
 import { formatCountdown } from "@/domain/time";
 import { CARD } from "@/domain/board";
 import { TaskCardFace, describeTemporal } from "./task-card-face";
+import { CompleteStamp } from "./complete-stamp";
 
 export type CardMotion = "idle" | "leaving" | "exploding" | "flying";
 
@@ -122,15 +123,18 @@ export const TaskCard = memo(function TaskCard({
       className={cn(
         "absolute z-(--z) origin-center cursor-grab touch-none outline-none select-none hover:z-[90000] focus-visible:z-[90000] active:cursor-grabbing",
         "focus-visible:[&>div]:ring-3 focus-visible:[&>div]:ring-stone-900/40",
-        !isDragging && "transition-transform duration-700 ease-out motion-reduce:transition-none",
+        !isDragging && motion === "idle" && "transition-transform duration-700 ease-out motion-reduce:transition-none",
         pending && "opacity-60",
-        motion === "leaving" && "pointer-events-none animate-[card-complete_450ms_ease-in_forwards] motion-reduce:animate-[fade-out_200ms_forwards]",
+        motion === "leaving" && "pointer-events-none animate-[card-complete_900ms_ease-in_forwards] motion-reduce:animate-[fade-out_200ms_forwards]",
         motion === "exploding" && "pointer-events-none animate-[card-burst_700ms_ease-out_forwards] motion-reduce:animate-[fade-out_300ms_forwards]",
         motion === "flying" && "pointer-events-none animate-[card-fly_900ms_cubic-bezier(0.2,0.7,0.3,1)_forwards] motion-reduce:animate-[fade-out_300ms_forwards]",
       )}
       style={style}
     >
-      <TaskCardFace task={task} temporal={temporal} animate={motion === "idle"} />
+      <div className="relative">
+        <TaskCardFace task={task} temporal={temporal} animate={motion === "idle"} />
+        {motion === "leaving" && <CompleteStamp />}
+      </div>
     </div>
   );
 });

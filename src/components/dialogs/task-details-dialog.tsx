@@ -202,7 +202,12 @@ function Details({
 
       {!editing ? (
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Button size="lg" className="flex-1 tracking-[0.15em]" onClick={markDone} disabled={!!busy || !online || task.status !== "active"}>
+          <Button
+            size="lg"
+            className="flex-1 bg-emerald-700 tracking-[0.15em] text-white hover:bg-emerald-800"
+            onClick={markDone}
+            disabled={!!busy || !online || task.status !== "active"}
+          >
             <Check aria-hidden /> {busy === "done" ? "SAVING…" : "MARK AS DONE"}
           </Button>
           <Button size="lg" variant="outline" className="flex-1 tracking-[0.15em]" onClick={() => onCutWire(task.id)} disabled={!!busy || !online || task.status !== "active"}>

@@ -16,6 +16,7 @@ import { getScarLevel } from "@/domain/scars";
 import { MIN_EXPLANATION_LENGTH } from "@/domain/rules";
 import { WHAT_HAPPENED, type Task, type WhatHappened } from "@/domain/types";
 import { submitPostMortem } from "@/server/actions";
+import { completeToast, playCompleteChime } from "@/lib/celebrate";
 
 /**
  * Destroyed board. Cannot be dismissed (no close button, Escape and outside clicks ignored)
@@ -120,9 +121,13 @@ function PostMortemForm({ task, onDone }: { task: Task; onDone: () => void }) {
       setSubmitError(res.error);
       return;
     }
-    toast(resolution === "complete" ? "Task completed." : resolution === "reschedule" ? "Fuse relit." : "Task discarded.", {
-      description: "The scar stays.",
-    });
+    if (resolution === "complete") {
+      playCompleteChime();
+      const copy = completeToast(task.title, task.explosionCount);
+      toast.success(copy.title, { description: copy.description, duration: 4200 });
+    } else {
+      toast(resolution === "reschedule" ? "Fuse relit." : "Task discarded.", { description: "The scar stays." });
+    }
     onDone();
   }
 

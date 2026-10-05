@@ -21,6 +21,7 @@ test("2 · complete task → leaves the board → shows in history", async ({ pa
   await createTask(page, "Buy a gift", "1 week");
   const dialog = await openCard(page, "Buy a gift");
   await dialog.getByRole("button", { name: "MARK AS DONE" }).click();
+  await expect(page.getByTestId("complete-stamp")).toBeVisible();
   await expect(card(page, "Buy a gift")).toHaveCount(0);
   await page.getByRole("link", { name: "History" }).click();
   const item = page.getByTestId("history-item").filter({ hasText: "Buy a gift" }).first();
