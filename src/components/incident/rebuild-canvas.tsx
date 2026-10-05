@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { DndContext, type DragEndEvent } from "@dnd-kit/core";
 import { toast } from "sonner";
 import { TaskCard } from "@/components/board/task-card";
-import { useCardSensors } from "@/components/board/board-canvas";
+import { CameraHud, useCardSensors } from "@/components/board/board-canvas";
 import { BOARD, STAGING_MARGIN, getNextFreeSlot, getStagingPositions, isInsideBoard } from "@/domain/board";
 import type { BoardIncident, BoardPause, Task } from "@/domain/types";
 import { restoreCard } from "@/server/actions";
+import { useCamera } from "@/lib/use-camera";
+import { cn } from "@/lib/utils";
 
 const WORLD = { width: BOARD.width + STAGING_MARGIN * 2, height: BOARD.height + STAGING_MARGIN * 2 };
 
@@ -31,21 +33,9 @@ export function RebuildCanvas({
   onDue: (id: string) => void;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
-  const [zoom, setZoom] = useState(0.5);
+  const camera = useCamera(viewportRef, WORLD);
   const sensors = useCardSensors();
   const [requested, setRequested] = useState<Record<string, { x: number; y: number }>>({});
-
-  useEffect(() => {
-    const el = viewportRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([e]) => {
-      const { width, height } = e.contentRect;
-      // Fit the whole staging ring on desktop; on small screens keep cards legible and let the user pan.
-      setZoom(Math.max(0.28, Math.min(1, (width - 16) / WORLD.width, (height - 16) / WORLD.height)));
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   const byId = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
   const cards = useMemo(() => incident.tasks.filter((it) => byId.get(it.taskId)?.status === "active"), [incident.tasks, byId]);
@@ -87,8 +77,9 @@ export function RebuildCanvas({
     const c = cards.find((x) => x.taskId === id);
     if (!c || c.restoredAt || pending[id]) return;
     const from = positionOf(id, null);
-    const x = from.x + e.delta.x / zoom;
-    const y = from.y + e.delta.y / zoom;
+    const z = camera.cameraRef.current.zoom;
+    const x = from.x + e.delta.x / z;
+    const y = from.y + e.delta.y / z;
     if (isInsideBoard(x, y)) void place(id, x, y);
   }
 
@@ -112,46 +103,54 @@ export function RebuildCanvas({
         </p>
       </div>
 
-      <div ref={viewportRef} className="relative min-h-0 flex-1 overflow-auto bg-stone-100" role="region" aria-label="Rebuild area">
-        <div style={{ width: WORLD.width * zoom, height: WORLD.height * zoom }}>
-          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-            <div className="relative origin-top-left" style={{ width: WORLD.width, height: WORLD.height, transform: `scale(${zoom})` }}>
-              <div
-                className="board-grid absolute rounded-2xl border-2 border-dashed border-stone-400 bg-background"
-                style={{ left: STAGING_MARGIN, top: STAGING_MARGIN, width: BOARD.width, height: BOARD.height }}
-                data-testid="rebuild-dropzone"
-              >
-                {restoredCount === 0 && (
-                  <p className="absolute inset-0 flex items-center justify-center text-4xl font-semibold tracking-[0.3em] text-stone-300">
-                    YOUR BOARD
-                  </p>
-                )}
-              </div>
-              <div className="absolute" style={{ left: STAGING_MARGIN, top: STAGING_MARGIN }}>
-                {cards.map((c) => {
-                  const t = byId.get(c.taskId)!;
-                  const p = positionOf(c.taskId, c.restoredAt);
-                  const movable = !c.restoredAt && !pending[c.taskId];
-                  return (
-                    <TaskCard
-                      key={c.taskId}
-                      task={t}
-                      pauses={pauses}
-                      x={p.x}
-                      y={p.y}
-                      zoom={zoom}
-                      maxScale={1.6}
-                      draggable={movable}
-                      pending={!!pending[c.taskId]}
-                      onDue={onDue}
-                      onKeyboardPlace={movable ? keyboardPlace : undefined}
-                    />
-                  );
-                })}
-              </div>
+      <div
+        ref={viewportRef}
+        className={cn("relative min-h-0 flex-1 touch-none overflow-hidden overscroll-none bg-stone-100", camera.panning ? "cursor-grabbing" : "cursor-grab")}
+        role="region"
+        aria-label="Rebuild area. Scroll to pan, pinch or ctrl-scroll to zoom."
+        onPointerDown={camera.onPointerDown}
+        onPointerMove={camera.onPointerMove}
+        onPointerUp={camera.onPointerUp}
+        onPointerCancel={camera.onPointerUp}
+      >
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+          <div className="absolute top-0 left-0 origin-top-left" style={{ width: WORLD.width, height: WORLD.height, transform: camera.transform }}>
+            <div
+              className="board-grid absolute rounded-2xl border-2 border-dashed border-stone-400 bg-background"
+              style={{ left: STAGING_MARGIN, top: STAGING_MARGIN, width: BOARD.width, height: BOARD.height }}
+              data-testid="rebuild-dropzone"
+            >
+              {restoredCount === 0 && (
+                <p className="absolute inset-0 flex items-center justify-center text-4xl font-semibold tracking-[0.3em] text-stone-300">
+                  YOUR BOARD
+                </p>
+              )}
             </div>
-          </DndContext>
-        </div>
+            <div className="absolute" style={{ left: STAGING_MARGIN, top: STAGING_MARGIN }}>
+              {cards.map((c) => {
+                const t = byId.get(c.taskId)!;
+                const p = positionOf(c.taskId, c.restoredAt);
+                const movable = !c.restoredAt && !pending[c.taskId];
+                return (
+                  <TaskCard
+                    key={c.taskId}
+                    task={t}
+                    pauses={pauses}
+                    x={p.x}
+                    y={p.y}
+                    zoom={camera.camera.zoom}
+                    maxScale={1.6}
+                    draggable={movable}
+                    pending={!!pending[c.taskId]}
+                    onDue={onDue}
+                    onKeyboardPlace={movable ? keyboardPlace : undefined}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        </DndContext>
+        <CameraHud zoom={camera.camera.zoom} onFit={camera.fit} onZoomIn={camera.zoomIn} onZoomOut={camera.zoomOut} />
       </div>
     </div>
   );
