@@ -198,11 +198,27 @@ export function useCamera(viewportRef: React.RefObject<HTMLElement | null>, worl
     [apply, viewportRef],
   );
 
+  const focusCard = useCallback((id: string) => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const card = [...el.querySelectorAll<HTMLElement>("[data-task-id]")].find((node) => node.dataset.taskId === id);
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    const viewport = el.getBoundingClientRect();
+    const current = cameraRef.current;
+    const centerX = ((rect.left + rect.right) / 2 - viewport.left - current.x) / current.zoom;
+    const centerY = ((rect.top + rect.bottom) / 2 - viewport.top - current.y) / current.zoom;
+    const fit = fitCamera(viewport.width, viewport.height, rect.width / current.zoom, rect.height / current.zoom);
+    const zoom = Math.min(1.5, fit.zoom);
+    apply({ zoom, x: viewport.width / 2 - centerX * zoom, y: viewport.height / 2 - centerY * zoom });
+  }, [apply, viewportRef]);
+
   return {
     camera,
     cameraRef,
     panning,
     fit,
+    focusCard,
     zoomIn: () => zoomBy(ZOOM_STEP),
     zoomOut: () => zoomBy(1 / ZOOM_STEP),
     onPointerDown,

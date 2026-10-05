@@ -10,7 +10,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { Minus, Plus } from "lucide-react";
+import { LocateFixed, Minus, Plus, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BOARD, CARD, clampToBoard } from "@/domain/board";
 import { URGENCY } from "@/domain/urgency";
@@ -18,6 +18,8 @@ import type { BoardPause, Task } from "@/domain/types";
 import { useCamera } from "@/lib/use-camera";
 import { Button } from "@/components/ui/button";
 import { TaskCard, type CardMotion } from "./task-card";
+import { Input } from "@/components/ui/input";
+import { findTasks } from "@/domain/search";
 
 /** A card may grow until it covers most of the viewport, never all of it. */
 export function useMaxScale(ref: React.RefObject<HTMLElement | null>) {
@@ -65,6 +67,15 @@ export function BoardCanvas({ tasks, pauses, positions, motions, paused, shaking
   const sensors = useCardSensors();
   const lastDragEnd = useRef(0);
   const camera = useCamera(viewportRef, BOARD, true);
+  const [query, setQuery] = useState("");
+  const [foundId, setFoundId] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const matches = findTasks(tasks, query);
+  const locate = (id: string) => {
+    camera.focusCard(id);
+    setFoundId(id);
+    setSearchOpen(false);
+  };
 
   const handleDragEnd = useCallback(
     (e: DragEndEvent) => {
@@ -90,6 +101,27 @@ export function BoardCanvas({ tasks, pauses, positions, motions, paused, shaking
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
+      <div className="relative z-[200001] border-b bg-background px-3 py-2">
+        <form className="mx-auto flex max-w-xl items-center gap-2" role="search" onSubmit={(e) => { e.preventDefault(); if (matches.length) locate(matches[0].id); }}>
+          <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          <Input type="search" aria-label="Find a task by title" placeholder="Find a task by title…" value={query}
+            onFocus={() => setSearchOpen(true)}
+            onChange={(e) => { setQuery(e.target.value); setSearchOpen(true); setFoundId(null); }}
+            onKeyDown={(e) => { if (e.key === "Escape") setSearchOpen(false); }} />
+          {query && <Button type="button" variant="ghost" size="icon" aria-label="Clear task search" onClick={() => { setQuery(""); setFoundId(null); setSearchOpen(false); }}><X /></Button>}
+        </form>
+        {query.trim() && searchOpen && (
+          <div className="absolute inset-x-3 top-full mx-auto max-h-[40dvh] max-w-xl overflow-y-auto rounded-b-lg border bg-popover p-2 shadow-lg">
+            <p role="status" className="px-2 py-1 text-xs text-muted-foreground">{matches.length ? `${matches.length} task${matches.length === 1 ? "" : "s"} found` : "No tasks found."}</p>
+            <ul>
+              {matches.map((task) => <li key={task.id} className="flex items-center gap-2 border-b px-2 py-2 last:border-0">
+                <span className="min-w-0 flex-1 break-words text-sm">{task.title}{task.status === "completed" && <span className="ml-2 text-xs text-muted-foreground">Done</span>}</span>
+                <Button type="button" variant="outline" size="sm" aria-label={`Center task: ${task.title}`} onClick={() => locate(task.id)}><LocateFixed aria-hidden /> Center</Button>
+              </li>)}
+            </ul>
+          </div>
+        )}
+      </div>
       {tasks.length === 0 && empty}
       <div
         ref={viewportRef}
@@ -122,6 +154,7 @@ export function BoardCanvas({ tasks, pauses, positions, motions, paused, shaking
                 <TaskCard
                   key={t.id}
                   task={t}
+                  highlighted={t.id === foundId}
                   pauses={pauses}
                   x={p.x}
                   y={p.y}
