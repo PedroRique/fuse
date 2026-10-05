@@ -72,11 +72,14 @@ export function sortTasks(
   });
 }
 
-/** Current visual reading order (top-to-bottom, then left-to-right). */
+/** Current visual reading order: top-to-bottom in coarse rows, then left-to-right.
+ * Row banding uses center y so a tall card in the same row isn't treated as "below" shorter ones.
+ */
 export function readingOrder(tasks: readonly Task[], positions: Record<string, { x: number; y: number }>) {
+  const rowOf = (y: number) => Math.round(y / 200);
   return [...tasks].sort((a, b) => {
     const pa = positions[a.id] ?? { x: a.positionX, y: a.positionY };
     const pb = positions[b.id] ?? { x: b.positionX, y: b.positionY };
-    return pa.y - pb.y || pa.x - pb.x || a.id.localeCompare(b.id);
+    return rowOf(pa.y) - rowOf(pb.y) || pa.x - pb.x || a.id.localeCompare(b.id);
   });
 }

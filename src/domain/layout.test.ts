@@ -91,4 +91,12 @@ describe("readingOrder", () => {
   it("reads top-to-bottom, then left-to-right", () => {
     expect(readingOrder(tasks, {}).map((t) => t.id)).toEqual(["a", "b", "c"]);
   });
+
+  it("keeps a mixed-height row left-to-right (tall card center sits lower)", () => {
+    const mixed = [
+      task({ id: "tall", impact: "low", fuseStartedAt: iso(T0), deadlineAt: iso(T0 + 1), positionX: 200, positionY: 180 }),
+      task({ id: "short", impact: "low", fuseStartedAt: iso(T0), deadlineAt: iso(T0 + 1), positionX: 600, positionY: 120 }),
+    ];
+    expect(readingOrder(mixed, {}).map((t) => t.id)).toEqual(["tall", "short"]);
+  });
 });
