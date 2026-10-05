@@ -21,27 +21,26 @@ describe("getUrgencyScale", () => {
     for (let i = 1; i < scales.length; i++) expect(scales[i]).toBeGreaterThanOrEqual(scales[i - 1]);
   });
 
-  it("is almost imperceptible until 50%", () => {
+  it("starts growing as soon as the fuse burns", () => {
     expect(getUrgencyScale(0)).toBe(1);
-    expect(getUrgencyScale(0.49)).toBeLessThan(1.02);
-    expect(getUrgencyScale(0.5)).toBeLessThan(1.03);
+    expect(getUrgencyScale(0.25)).toBeGreaterThan(1.1);
+    expect(getUrgencyScale(0.5)).toBeGreaterThan(1.35);
+    expect(getUrgencyScale(0.5)).toBeLessThan(1.6);
   });
 
-  it("starts to show between 50% and 75%", () => {
-    expect(getUrgencyScale(0.74)).toBeGreaterThan(1.2);
-    expect(getUrgencyScale(0.75)).toBeLessThan(1.5);
+  it("is clearly larger at 75% than at 50%", () => {
+    expect(getUrgencyScale(0.75) - getUrgencyScale(0.5)).toBeGreaterThan(0.5);
+    expect(getUrgencyScale(0.75)).toBeGreaterThan(1.9);
   });
 
-  it("grows evidently from 75% to 90%", () => {
-    expect(getUrgencyScale(0.89) - getUrgencyScale(0.75)).toBeGreaterThan(0.5);
+  it("keeps growing through 75% to 90%", () => {
+    expect(getUrgencyScale(0.9) - getUrgencyScale(0.75)).toBeGreaterThan(0.5);
   });
 
-  it("grows aggressively in the last 10%", () => {
-    const late = getUrgencyScale(1) - getUrgencyScale(0.9);
-    const mid = getUrgencyScale(0.9) - getUrgencyScale(0.75);
-    expect(late).toBeGreaterThan(mid);
-    expect(getUrgencyScale(0.95)).toBeGreaterThan(2.5);
+  it("still packs extra growth into the last stretch", () => {
+    expect(getUrgencyScale(0.95)).toBeGreaterThan(2.8);
     expect(getUrgencyScale(0.999)).toBeCloseTo(URGENCY.maxScale, 1);
+    expect(getUrgencyScale(1) - getUrgencyScale(0.9)).toBeGreaterThan(0.5);
   });
 
   it("is capped at maxScale and handles out-of-range input", () => {
@@ -71,9 +70,10 @@ describe("states and heat", () => {
     [1, "critical"],
   ])("progress %s → %s", (p, s) => expect(getStateForProgress(p)).toBe(s));
 
-  it("heat starts at 50%", () => {
-    expect(getHeat(0.4)).toBe(0);
-    expect(getHeat(0.75)).toBeCloseTo(0.5);
+  it("heat tracks burned progress from the first tick", () => {
+    expect(getHeat(0)).toBe(0);
+    expect(getHeat(0.4)).toBeCloseTo(0.4);
+    expect(getHeat(0.75)).toBeCloseTo(0.75);
     expect(getHeat(1)).toBe(1);
   });
 });
@@ -142,5 +142,27 @@ describe("getTaskTemporalState", () => {
 
   it("reports exploded status regardless of time", () => {
     expect(getTaskTemporalState(task(100 * H, { status: "exploded" }), [], at(0.1)).state).toBe("exploded");
+  });
+});
+
+describe("deadline pressure", () => {
+  it("a just-lit 3-day fuse is larger and warmer than a just-lit month", () => {
+    const three = getTaskTemporalState(task(72 * H), [], T0);
+    const month = getTaskTemporalState(task(30 * 24 * H), [], T0);
+    expect(three.scale).toBeGreaterThan(month.scale + 0.15);
+    expect(three.heat).toBeGreaterThan(month.heat);
+    expect(three.progress).toBe(0);
+    expect(month.progress).toBe(0);
+  });
+
+  it("less time left is never smaller", () => {
+    const hours = [2, 12, 24, 72, 168, 720];
+    const scales = hours.map((h) => getTaskTemporalState(task(h * H), [], T0).scale);
+    for (let i = 1; i < scales.length; i++) expect(scales[i]).toBeLessThanOrEqual(scales[i - 1]);
+  });
+
+  it("late fuse growth still wins over remaining-time pressure", () => {
+    const burned = getTaskTemporalState(task(100 * H), [], at(0.75));
+    expect(burned.scale).toBeGreaterThan(1.9);
   });
 });

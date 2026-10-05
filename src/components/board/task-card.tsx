@@ -107,6 +107,7 @@ export const TaskCard = memo(function TaskCard({
       data-testid="task-card"
       data-task-id={task.id}
       data-state={temporal.state}
+      data-fuse={Math.round(temporal.progress * 100)}
       data-scar={task.explosionCount}
       onClick={() => onOpen?.(task.id)}
       onKeyDown={(e) => {

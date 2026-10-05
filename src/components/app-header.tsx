@@ -1,21 +1,35 @@
 import Link from "next/link";
-import { LogOut, Plus, Siren } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowUpDown, LayoutGrid, LogOut, Plus, Siren } from "lucide-react";
+import { Menu } from "@base-ui/react/menu";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { signOut } from "@/server/actions";
 import { cn } from "@/lib/utils";
+import type { BoardSort } from "@/domain/layout";
+
+const SORTS: { value: BoardSort; label: string; hint: string }[] = [
+  { value: "severity", label: "Severity", hint: "Critical impact first" },
+  { value: "deadline", label: "Deadline", hint: "Soonest due first" },
+  { value: "fuse", label: "Fuse", hint: "Most burned first" },
+];
 
 export function AppHeader({
   active,
   onNewTask,
   onEmergency,
+  onTidy,
+  onSort,
   newTaskDisabled,
   emergencyDisabled,
+  arrangeDisabled,
 }: {
   active: "board" | "history";
   onNewTask?: () => void;
   onEmergency?: () => void;
+  onTidy?: () => void;
+  onSort?: (by: BoardSort) => void;
   newTaskDisabled?: boolean;
   emergencyDisabled?: boolean;
+  arrangeDisabled?: boolean;
 }) {
   return (
     <header className="flex items-center gap-2 border-b bg-background/90 px-3 py-2.5 backdrop-blur sm:gap-4 sm:px-6">
@@ -43,6 +57,39 @@ export function AppHeader({
         ))}
       </nav>
       <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+        {onTidy && (
+          <Button variant="outline" onClick={onTidy} disabled={arrangeDisabled} data-testid="tidy-board" aria-label="Tidy board">
+            <LayoutGrid aria-hidden /> <span className="hidden sm:inline">Tidy</span>
+          </Button>
+        )}
+        {onSort && (
+          <Menu.Root>
+            <Menu.Trigger
+              disabled={arrangeDisabled}
+              data-testid="sort-board"
+              aria-label="Sort board"
+              className={buttonVariants({ variant: "outline" })}
+            >
+              <ArrowUpDown aria-hidden className="size-4" /> <span className="hidden sm:inline">Sort</span>
+            </Menu.Trigger>
+            <Menu.Portal>
+              <Menu.Positioner sideOffset={6} className="z-[200000]">
+                <Menu.Popup className="min-w-48 rounded-lg border bg-popover p-1 text-popover-foreground shadow-md">
+                  {SORTS.map((s) => (
+                    <Menu.Item
+                      key={s.value}
+                      onClick={() => onSort(s.value)}
+                      className="flex cursor-default flex-col rounded-md px-2.5 py-1.5 text-sm outline-none select-none data-highlighted:bg-muted"
+                    >
+                      <span className="font-medium">{s.label}</span>
+                      <span className="text-xs text-muted-foreground">{s.hint}</span>
+                    </Menu.Item>
+                  ))}
+                </Menu.Popup>
+              </Menu.Positioner>
+            </Menu.Portal>
+          </Menu.Root>
+        )}
         {onEmergency && (
           <Button variant="outline" onClick={onEmergency} disabled={emergencyDisabled} aria-label="Emergency pause">
             <Siren aria-hidden /> <span className="hidden sm:inline">Emergency</span>

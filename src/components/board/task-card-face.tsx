@@ -41,18 +41,24 @@ export function TaskCardFace({
   const { Icon } = isPaused ? { Icon: Pause } : isDormant ? { Icon: Moon } : STATE_META[state];
   const motion = animate && !isPaused;
 
-  // Temperature: white → warm → hot. Kept light so dark text always keeps AA contrast.
-  const tint = isDormant ? 0 : Math.round(heat * heat * 22);
-  const tintColor = state === "critical" || state === "exploded" ? "#dc2626" : "#f97316";
+  // Temperature: white → warm → hot. Mix is linear with burned %, so 20% already reads warmer than 5%.
+  const tint = isDormant ? 0 : Math.round(heat * 42);
+  const tintColor = state === "critical" || state === "exploded" ? "#dc2626" : "#ea580c";
 
   return (
     <div
       className={cn(
         "relative flex flex-col gap-2 overflow-hidden rounded-xl border bg-white p-3 text-left text-stone-900 shadow-sm",
-        IMPACT_EDGE[task.impact],
-        state === "critical" && !isDormant ? "border-red-300" : state === "warning" && !isDormant ? "border-orange-200" : "border-stone-200",
+        state === "critical" && !isDormant
+          ? "border-red-400"
+          : state === "warning" && !isDormant
+            ? "border-orange-300"
+            : state === "active" && !isDormant
+              ? "border-orange-200"
+              : "border-stone-200",
         state === "critical" && !isDormant && motion && "motion-safe:animate-[fuse-pulse_1.8s_ease-in-out_infinite]",
         scar >= 3 && "border-stone-400",
+        IMPACT_EDGE[task.impact],
         className,
       )}
       style={{

@@ -2,10 +2,10 @@ import type { BoardPause, Task } from "./types";
 import { clamp, getEffectiveElapsedMs, getFuseMs, getProgress, getRemainingMs, isPausedAt } from "./time";
 
 export const URGENCY = {
-  /** Progress where growth starts to register at all. */
-  curveStart: 0.45,
-  /** Curve steepness: higher = more of the growth packed near the deadline. */
-  steepness: 4,
+  /** Growth starts as soon as the fuse lights, so two cards with different % never look the same size. */
+  curveStart: 0,
+  /** Curve steepness: still eases up near the deadline, but the mid-fuse is readable. */
+  steepness: 3.2,
   /** Absolute max scale at 100%. The UI may clamp further to fit the viewport. */
   maxScale: 3.4,
   activeAt: 0.5,
@@ -17,19 +17,37 @@ export const URGENCY = {
 export type TemporalStateName = "safe" | "active" | "warning" | "critical" | "exploded";
 
 /**
- * Smooth exponential ease from curveStart to 1.
- * ~1.02 at 50%, ~1.35 at 75%, ~2.1 at 90%, maxScale at 100%.
+ * Smooth exponential ease from the first tick.
+ * ~1.13 at 25%, ~1.40 at 50%, ~2.02 at 75%, ~2.71 at 90%, maxScale at 100%.
  */
 export function getUrgencyScale(progress: number): number {
   const p = clamp(Number.isFinite(progress) ? progress : 0, 0, 1);
-  const x = clamp((p - URGENCY.curveStart) / (1 - URGENCY.curveStart), 0, 1);
+  const span = 1 - URGENCY.curveStart;
+  const x = clamp(span <= 0 ? 1 : (p - URGENCY.curveStart) / span, 0, 1);
   const k = URGENCY.steepness;
   const eased = (Math.exp(k * x) - 1) / (Math.exp(k) - 1);
   return 1 + (URGENCY.maxScale - 1) * eased;
 }
 
-/** 0..1 visual "temperature", used for color/border intensity. */
-export const getHeat = (progress: number) => clamp((progress - URGENCY.activeAt) / (1 - URGENCY.activeAt), 0, 1);
+/** 0..1 visual "temperature". Tracks burned % from the first tick so color is never "all white". */
+export const getHeat = (progress: number) => clamp(Number.isFinite(progress) ? progress : 0, 0, 1);
+
+const HOUR = 3_600_000;
+
+/**
+ * Absolute time left also takes space. A 3-day fuse that just lit is more urgent
+ * than a 3-month fuse that just lit, even though both are at 0% burned.
+ * Half-life ~36h so 3 days still reads, a month is nearly scale 1.
+ */
+export function getDeadlinePressure(remainingMs: number): { scale: number; heat: number } {
+  if (!Number.isFinite(remainingMs)) return { scale: 1, heat: 0 };
+  if (remainingMs <= 0) return { scale: URGENCY.maxScale, heat: 1 };
+  const p = 1 / (1 + remainingMs / HOUR / 36);
+  return {
+    scale: 1 + (URGENCY.maxScale - 1) * p ** 1.15 * 0.48,
+    heat: p ** 1.1 * 0.55,
+  };
+}
 
 export function getStateForProgress(progress: number): Exclude<TemporalStateName, "exploded"> {
   if (progress >= URGENCY.criticalAt) return "critical";
@@ -78,11 +96,12 @@ export function getTaskTemporalState(
     return { ...base, state: "safe", scale: 1, heat: 0, isDormant, isFinalCountdown: false };
   }
 
+  const pressure = getDeadlinePressure(remainingMs);
   return {
     ...base,
     state: getStateForProgress(progress),
-    scale: getUrgencyScale(progress),
-    heat: getHeat(progress),
+    scale: Math.max(getUrgencyScale(progress), pressure.scale),
+    heat: Math.max(getHeat(progress), pressure.heat),
     isDormant,
     isFinalCountdown: progress >= URGENCY.finalCountdownAt,
   };

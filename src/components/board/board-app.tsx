@@ -20,8 +20,11 @@ import { getNow, syncServerClock, useClockValue, useHydrated } from "@/lib/clock
 import { useOnline, useReducedMotion } from "@/lib/use-online";
 import { getActivePause, getRemainingMs } from "@/domain/time";
 import { getNewTaskPosition } from "@/domain/board";
+import { packCards, readingOrder, sortTasks, type BoardSort } from "@/domain/layout";
+import { getTaskTemporalState } from "@/domain/urgency";
 import type { BoardSnapshot } from "@/server/queries";
 import { moveTask, syncBoard } from "@/server/actions";
+import type { Task } from "@/domain/types";
 
 export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
   const router = useRouter();
@@ -102,6 +105,22 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
     [incidentKey],
   );
 
+  const layoutTasks = useCallback(
+    async (ordered: Task[]) => {
+      if (!ordered.length) return;
+      const now = getNow();
+      const next = packCards(ordered.map((t) => ({ id: t.id, scale: getTaskTemporalState(t, pauses, now).scale })));
+      setMoved({ key: incidentKey, map: next });
+      const results = await Promise.all(Object.entries(next).map(([id, p]) => moveTask({ taskId: id, x: p.x, y: p.y })));
+      const fail = results.find((r) => !r.ok);
+      if (fail && !fail.ok) {
+        toast.error("Couldn't rearrange the board.", { description: fail.error });
+        refresh();
+      }
+    },
+    [pauses, incidentKey, refresh],
+  );
+
   // --- completion: animate only after the server confirmed ---
   const [leaving, setLeaving] = useState<Set<string>>(new Set());
   const onCompleted = useCallback(
@@ -136,6 +155,17 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
     : [];
   const blocked = destroyed || rebuilding;
 
+  const onTidy = useCallback(() => {
+    void layoutTasks(readingOrder(activeTasks, positions));
+  }, [layoutTasks, activeTasks, positions]);
+
+  const onSort = useCallback(
+    (by: BoardSort) => {
+      void layoutTasks(sortTasks(activeTasks, pauses, getNow(), by));
+    },
+    [layoutTasks, activeTasks, pauses],
+  );
+
   const detailsTask = tasks.find((t) => t.id === detailsId && t.status === "active") ?? null;
   const cutWireTask = tasks.find((t) => t.id === cutWire?.id && t.status === "active") ?? null;
 
@@ -163,8 +193,11 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
         active="board"
         onNewTask={() => setCreateOpen(true)}
         onEmergency={() => setPauseOpen(true)}
+        onTidy={onTidy}
+        onSort={onSort}
         newTaskDisabled={blocked || !online}
         emergencyDisabled={blocked || !!activePause || !online}
+        arrangeDisabled={blocked || !online || activeTasks.length === 0}
       />
       {!online && (
         <div role="status" className="flex items-center justify-center gap-2 border-b bg-amber-50 px-4 py-2 text-sm text-amber-900">
