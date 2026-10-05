@@ -45,6 +45,13 @@ describe("deadline edit threshold", () => {
     expect(judgeDeadlineEdit(task, [], at(0.9), sooner).kind).toBe("allowed");
   });
 
+  it("compares against the pause-adjusted end", () => {
+    const pause: BoardPause = { id: "p", reason: "r", startedAt: iso(at(0.8)), plannedEndAt: iso(at(0.8) + 10 * H), endedAt: null };
+    // At 80% + 10h paused, the effective end is T0+110h. T0+105h is a shortening → allowed.
+    expect(judgeDeadlineEdit(task, [pause], at(0.8) + 10 * H, T0 + 105 * H).kind).toBe("allowed");
+    expect(judgeDeadlineEdit(task, [pause], at(0.8) + 10 * H, T0 + 115 * H).kind).toBe("requires_wire_cut");
+  });
+
   it("rejects deadlines in the past and edits after expiry", () => {
     expect(judgeDeadlineEdit(task, [], at(0.9), T0 + 50 * H).kind).toBe("invalid");
     expect(judgeDeadlineEdit(task, [], at(1), later).kind).toBe("invalid");

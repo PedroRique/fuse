@@ -21,26 +21,20 @@ export type DeadlineEditVerdict =
   | { kind: "invalid"; message: string };
 
 /**
+ * `newEndMs` is the desired wall-clock end of the fuse (what the user picks).
  * Free edits are allowed while the fuse is young, or when shortening.
- * Extending a well-burned fuse must go through Cut the Wire.
+ * Extending a well-burned fuse must go through Cut the Wire. Mirrored in SQL `reschedule_task`.
  */
 export function judgeDeadlineEdit(
   task: FuseTask,
   pauses: readonly BoardPause[],
   now: number,
-  newDeadlineMs: number,
+  newEndMs: number,
 ): DeadlineEditVerdict {
   if (task.status !== "active") return { kind: "invalid", message: "Only active tasks can be rescheduled." };
   if (isExplosionDue(task, pauses, now)) return { kind: "invalid", message: "This fuse already ran out." };
-  const current = new Date(task.deadlineAt).getTime();
-  if (newDeadlineMs <= new Date(task.fuseStartedAt).getTime()) {
-    return { kind: "invalid", message: "The deadline must be after the fuse was lit." };
-  }
-  // Effective deadline after the change must still be in the future.
-  if (getEffectiveDeadline(task, pauses, now) + (newDeadlineMs - current) <= now) {
-    return { kind: "invalid", message: "Pick a moment in the future." };
-  }
-  if (newDeadlineMs <= current) return { kind: "allowed" };
+  if (newEndMs <= now) return { kind: "invalid", message: "Pick a moment in the future." };
+  if (newEndMs <= getEffectiveDeadline(task, pauses, now)) return { kind: "allowed" };
   if (getProgress(task, pauses, now) >= CRITICAL_EDIT_THRESHOLD) return { kind: "requires_wire_cut" };
   return { kind: "allowed" };
 }
