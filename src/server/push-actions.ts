@@ -25,6 +25,8 @@ export async function savePushSubscription(input: unknown) {
     return error ? { error: "Couldn't refresh notifications." } : { id: existing.id as string };
   }
   const { data, error } = await supabase.from("push_subscriptions").insert({ user_id: user.id, endpoint: parsed.data.endpoint, ...parsed.data.keys }).select("id").single();
+  if (error?.message.includes("DEVICE_LIMIT")) return { error: "You can enable notifications on up to 10 devices." };
+  if (error?.message.includes("RATE_LIMITED")) return { error: "Too many device registrations. Try again later." };
   return error ? { error: "Couldn't save this device. Disable notifications and try again." } : { id: data.id as string };
 }
 export async function removePushSubscription(endpoint: string) {

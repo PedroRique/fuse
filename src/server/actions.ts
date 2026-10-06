@@ -20,6 +20,8 @@ import {
 export type ActionResult = { ok: true; data?: Record<string, unknown> } | { ok: false; error: string; code?: string };
 
 const MESSAGES: Record<string, string> = {
+  RATE_LIMITED: "Too many actions. Wait a minute and try again.",
+  TASK_LIMIT: "Your board reached its task limit. Contact support before adding more tasks.",
   UNDO_UNAVAILABLE: "This action can no longer be undone. The task or board has changed.",
   BOARD_DESTROYED: "Your board exploded. Deal with it before doing anything else.",
   TASK_NOT_ACTIVE: "This task is no longer active. Its fuse may have just run out.",
@@ -37,7 +39,7 @@ async function call<S extends z.ZodType>(schema: S, input: unknown, fn: string, 
   const { data, error } = await supabase.rpc(fn, toArgs(parsed.data));
   if (error) {
     const code = Object.keys(MESSAGES).find((k) => error.message.includes(k));
-    return { ok: false, code, error: code ? MESSAGES[code] : error.message.replace(/^INVALID_INPUT: /, "Invalid input: ") };
+    return { ok: false, code, error: code ? MESSAGES[code] : "Couldn't save this change. Try again." };
   }
   const res = data as { ok: boolean; code?: string } & Record<string, unknown>;
   if (!res.ok) return { ok: false, code: res.code, error: MESSAGES[res.code ?? ""] ?? "Something went wrong." };

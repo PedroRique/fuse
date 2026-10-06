@@ -17,17 +17,49 @@ async function send(device: { endpoint: string; p256dh: string; auth: string }, 
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (Number(req.headers.get("content-length") ?? 0) > 4096) return json({ error: "Request too large" }, 413);
+  // Reject requests with no credentials before any database/configuration lookup.
+  const token = req.headers.get("authorization")?.replace(/^Bearer /i, "");
+  const cronToken = req.headers.get("x-fuse-cron");
+  if (!token && !cronToken) return json({ error: "Unauthorized" }, 401);
   try {
-    const { data: config, error } = await admin.rpc("push_configuration");
-    if (error || !config?.fuse_push_private) return json({ error: "Push is not configured" }, 503);
-    webpush.setVapidDetails("https://fuse-blond.vercel.app", config.fuse_push_public, config.fuse_push_private);
-    const body = await req.json();
+    const reader = req.body?.getReader();
+    if (!reader) return json({ error: "Invalid request" }, 400);
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.length;
+      if (size > 4096) { await reader.cancel(); return json({ error: "Request too large" }, 413); }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+    let body;
+    try { body = JSON.parse(new TextDecoder().decode(bytes)); } catch { return json({ error: "Invalid request" }, 400); }
+    if (!body || typeof body !== "object" || !["test", "dispatch"].includes(body.mode)) return json({ error: "Invalid request" }, 400);
+    let userId: string | undefined;
     if (body.mode === "test") {
-      const token = req.headers.get("authorization")?.replace(/^Bearer /i, "");
       if (!token) return json({ error: "Sign in again" }, 401);
       const { data: { user } } = await admin.auth.getUser(token);
       if (!user) return json({ error: "Sign in again" }, 401);
-      const { data: device } = await admin.from("push_subscriptions").select("*").eq("id", body.subscriptionId).eq("user_id", user.id).single();
+      userId = user.id;
+      if (typeof body.subscriptionId !== "string" || !/^[0-9a-f-]{36}$/i.test(body.subscriptionId)) return json({ error: "Invalid device" }, 400);
+      const { data: allowed, error: rateError } = await admin.rpc("claim_push_test", { p_user: user.id });
+      if (rateError) throw rateError;
+      if (!allowed) return json({ error: "Too many notification tests. Try again later." }, 429);
+    } else {
+      if (!cronToken || cronToken.length > 256) return json({ error: "Unauthorized" }, 401);
+      const { data: authorized, error: authError } = await admin.rpc("authorize_push_cron", { p_token: cronToken });
+      if (authError || !authorized) return json({ error: "Unauthorized" }, 401);
+    }
+    const { data: config, error } = await admin.rpc("push_configuration");
+    if (error || !config?.fuse_push_private) return json({ error: "Push is not configured" }, 503);
+    webpush.setVapidDetails("https://fuse-blond.vercel.app", config.fuse_push_public, config.fuse_push_private);
+    if (body.mode === "test") {
+      const { data: device } = await admin.from("push_subscriptions").select("*").eq("id", body.subscriptionId).eq("user_id", userId).single();
       if (!device) return json({ error: "Device not found" }, 404);
       // Atomic per-device rate limit. Users cannot modify last_test_at through RLS.
       const { data: claimed, error: claimError } = await admin.from("push_subscriptions")
@@ -40,7 +72,6 @@ Deno.serve(async (req) => {
       return result.ok ? json({ ok: true }) : json({ error: "Push service rejected the notification. Disable and enable notifications again." }, 502);
     }
     // JWT verification is disabled at the gateway: cron uses this private Vault token.
-    if (body.mode !== "dispatch" || req.headers.get("x-fuse-cron") !== config.fuse_push_cron) return json({ error: "Unauthorized" }, 401);
     const { data: deliveries, error: queueError } = await admin.rpc("claim_push_deliveries");
     if (queueError) throw queueError;
     let sent = 0;
