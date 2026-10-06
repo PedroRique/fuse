@@ -1,8 +1,10 @@
-import { addDays, addHours, addMinutes, addMonths, addWeeks, endOfDay } from "date-fns";
+import { addDays, addHours, addMinutes, addMonths, addWeeks, endOfDay, endOfWeek } from "date-fns";
 
 export const FUSE_PRESETS = [
   { value: "2h", label: "2 hours" },
   { value: "today", label: "Today" },
+  { value: "tomorrow", label: "Tomorrow" },
+  { value: "this_week", label: "This week" },
   { value: "3d", label: "3 days" },
   { value: "1w", label: "1 week" },
   { value: "1m", label: "1 month" },
@@ -18,6 +20,10 @@ export function resolveFusePreset(preset: Exclude<FusePreset, "custom">, now: Da
       return addHours(now, 2);
     case "today":
       return endOfDay(now);
+    case "tomorrow":
+      return endOfDay(addDays(now, 1));
+    case "this_week":
+      return endOfWeek(now, { weekStartsOn: 1 });
     case "3d":
       return addDays(now, 3);
     case "1w":

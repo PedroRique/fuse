@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { format } from "date-fns";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,6 +18,8 @@ import { getNow } from "@/lib/clock";
 import { createTask } from "@/server/actions";
 
 const IMPACT_OPTIONS = IMPACTS.map((i) => ({ value: i, label: i[0].toUpperCase() + i.slice(1) }));
+const QUICK_PRESETS = FUSE_PRESETS.filter((p) => ["today", "tomorrow", "this_week"].includes(p.value));
+const OTHER_PRESETS = FUSE_PRESETS.filter((p) => !["today", "tomorrow", "this_week"].includes(p.value));
 
 const schema = z
   .object({
@@ -49,7 +52,7 @@ function deadlineFor(v: Pick<Values, "fuse" | "custom">): Date | null {
 const defaults = (): Values => ({
   title: "",
   notes: "",
-  fuse: "today",
+  fuse: resolveFusePreset("today", new Date(getNow())).getTime() > getNow() + 60_000 ? "today" : "tomorrow",
   custom: toLocalInput(new Date(getNow() + 24 * 3_600_000)),
   impact: "normal",
   bother: "now",
@@ -70,10 +73,13 @@ export function CreateTaskDialog({
   disabled?: boolean;
 }) {
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [moreOptions, setMoreOptions] = useState(false);
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: defaults() });
   const { register, control, handleSubmit, watch, formState, reset } = form;
   const fuse = watch("fuse");
   const bother = watch("bother");
+  const custom = watch("custom");
+  const deadlinePreview = deadlineFor({ fuse, custom });
 
   const onSubmit = handleSubmit(async (v) => {
     setSubmitError(null);
@@ -94,15 +100,18 @@ export function CreateTaskDialog({
     }
     toast.success("Fuse lit.", { description: v.title });
     reset(defaults());
+    setMoreOptions(false);
     onOpenChange(false);
     onCreated(String(res.data?.taskId));
+  }, (errors) => {
+    if (errors.notes || errors.botherAt || errors.custom) setMoreOptions(true);
   });
 
   return (
     <Dialog
       open={open}
       onOpenChange={(o) => {
-        if (o) reset(defaults());
+        if (o) { reset(defaults()); setSubmitError(null); setMoreOptions(false); }
         onOpenChange(o);
       }}
     >
@@ -112,29 +121,35 @@ export function CreateTaskDialog({
           <DialogDescription>It starts small. It won&apos;t stay that way.</DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={onSubmit} className="space-y-6" noValidate>
+        <form onSubmit={onSubmit} className="space-y-4" noValidate>
           <div className="space-y-2">
             <Label htmlFor="task-title" className="text-sm font-semibold">
               What needs to be done?
             </Label>
-            <Input id="task-title" autoFocus placeholder="Send the proposal to Marta" aria-invalid={!!formState.errors.title} {...register("title")} />
+            <Input id="task-title" autoFocus maxLength={200} enterKeyHint="done" className="text-base" placeholder="Send the proposal to Marta" aria-invalid={!!formState.errors.title} {...register("title")} />
             <FieldError message={formState.errors.title?.message} />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="task-notes" className="text-sm font-semibold">
-              Notes <span className="font-normal text-muted-foreground">(optional)</span>
-            </Label>
-            <Textarea id="task-notes" rows={2} {...register("notes")} />
           </div>
 
           <Controller
             control={control}
             name="fuse"
             render={({ field }) => (
-              <ChoiceGroup legend="When does it become a problem?" name="fuse" options={FUSE_PRESETS} value={field.value} onChange={field.onChange} />
+              <ChoiceGroup legend="When is it due?" name="fuse" options={QUICK_PRESETS} columns={3} value={field.value} onChange={field.onChange} />
             )}
           />
+          {deadlinePreview && !Number.isNaN(deadlinePreview.getTime()) && <p className="text-xs text-muted-foreground">Due {format(deadlinePreview, "EEEE, dd MMM, HH:mm")} · your local time</p>}
+          <Button type="button" variant="outline" className="w-full" aria-expanded={moreOptions} aria-controls="new-task-options" onClick={() => setMoreOptions((value) => !value)}>
+            {moreOptions ? "Fewer options" : "More options"}
+          </Button>
+          <div id="new-task-options" hidden={!moreOptions} className="space-y-6">
+          <Controller control={control} name="fuse" render={({ field }) => (
+            <ChoiceGroup legend="Other deadlines" name="other-fuse" options={OTHER_PRESETS} value={field.value} onChange={field.onChange} />
+          )} />
+          <div className="space-y-2">
+            <Label htmlFor="task-notes" className="text-sm font-semibold">Notes <span className="font-normal text-muted-foreground">(optional)</span></Label>
+            <Textarea id="task-notes" rows={2} maxLength={5000} {...register("notes")} />
+            <FieldError message={formState.errors.notes?.message} />
+          </div>
           {fuse === "custom" && (
             <Controller
               control={control}
@@ -144,7 +159,6 @@ export function CreateTaskDialog({
               )}
             />
           )}
-          {fuse !== "custom" && <FieldError message={formState.errors.custom?.message} />}
 
           <Controller
             control={control}
@@ -187,6 +201,10 @@ export function CreateTaskDialog({
               )}
             />
           )}
+          </div>
+          {!moreOptions && (fuse === "custom" || bother === "later" || watch("impact") !== "normal" || !!watch("notes")) && <p className="text-xs text-muted-foreground">Your additional options are kept. Open More options to review them.</p>}
+          {(fuse !== "custom" || !moreOptions) && <FieldError message={formState.errors.custom?.message} />}
+          {!moreOptions && <FieldError message={formState.errors.botherAt?.message} />}
 
           {submitError && (
             <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">

@@ -2,17 +2,23 @@
 
 import { useSyncExternalStore } from "react";
 import type { BoardSort } from "@/domain/layout";
+import { LIST_FILTERS, type ListFilter } from "@/domain/list-filters";
 
 const KEY = "fuse.board-preferences.v1";
 const EVENT = "fuse:board-preferences";
-type Preferences = { sort: BoardSort; hideCompleted: boolean; view: "canvas" | "list" };
-const defaults: Preferences = { sort: "deadline", hideCompleted: false, view: "canvas" };
+type Preferences = { sort: BoardSort; hideCompleted: boolean; view: "canvas" | "list"; listFilter: ListFilter };
+const defaults: Preferences = { sort: "deadline", hideCompleted: false, view: "canvas", listFilter: "all" };
 let fallback: string | null = null;
 
 export function parsePreferences(raw: string | null): Preferences {
   try {
     const value = JSON.parse(raw ?? "null");
-    return { sort: ["deadline", "severity", "fuse"].includes(value?.sort) ? value.sort : defaults.sort, hideCompleted: value?.hideCompleted === true, view: value?.view === "list" ? "list" : "canvas" };
+    return {
+      sort: ["deadline", "severity", "fuse"].includes(value?.sort) ? value.sort : defaults.sort,
+      hideCompleted: value?.hideCompleted === true,
+      view: value?.view === "list" ? "list" : "canvas",
+      listFilter: LIST_FILTERS.some((filter) => filter.value === value?.listFilter) ? value.listFilter : defaults.listFilter,
+    };
   } catch { return defaults; }
 }
 

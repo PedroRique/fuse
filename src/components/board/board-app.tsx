@@ -223,6 +223,11 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
         .filter((t) => !!t)
     : [];
   const blocked = destroyed || rebuilding;
+  // Filters/search can hide an expiring row. Sync deadlines independently of visible cards.
+  const dueTasks = useClockValue((now) => tasks.filter((task) => task.status === "active" && getRemainingMs(task, pauses, now) <= 0).map((task) => task.id).join("|"), "");
+  useEffect(() => {
+    if (dueTasks && online && !blocked) void onDue();
+  }, [dueTasks, online, blocked, onDue]);
 
   const onTidy = useCallback(() => {
     void layoutTasks(readingOrder(boardTasks, positions));
@@ -320,7 +325,7 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
       ) : (
         <>
           {exploding && !reducedMotion && <div aria-hidden className="pointer-events-none fixed inset-0 z-[150000] animate-[flash_700ms_ease-out_forwards] bg-amber-50" />}
-          {preferences.view === "list" ? <TaskList tasks={destroyed && !exploding ? [] : boardTasks} pauses={pauses} sort={preferences.sort} onOpen={setDetailsId} onDue={onDue} interactive={!blocked && online} empty={empty} /> : <BoardCanvas
+          {preferences.view === "list" ? <TaskList tasks={destroyed && !exploding ? [] : tasks} pauses={pauses} sort={preferences.sort} filter={preferences.listFilter} onFilterChange={(listFilter) => preferences.update({ listFilter })} hideCompleted={preferences.hideCompleted} onOpen={setDetailsId} onDue={onDue} interactive={!blocked && online} empty={empty} /> : <BoardCanvas
             tasks={destroyed && !exploding ? [] : boardTasks}
             pauses={pauses}
             positions={positions}
@@ -337,6 +342,12 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
       )}
 
       {mounted && destroyed && !exploding && <ExplosionOverlay pending={pendingPostMortems} onDone={refresh} />}
+
+      {!blocked && !createOpen && !detailsId && !pauseOpen && !cutWire && <Button
+        type="button" aria-label="New task" disabled={!online} onClick={() => setCreateOpen(true)}
+        className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-30 h-14 w-14 rounded-full shadow-lg sm:hidden">
+        <Plus className="size-6" aria-hidden />
+      </Button>}
 
       <CreateTaskDialog
         open={createOpen}
