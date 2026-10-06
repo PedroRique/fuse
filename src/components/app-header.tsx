@@ -112,7 +112,20 @@ export function AppHeader({
             <span className="sr-only sm:hidden">New Task</span>
           </Button>
         )}
-        <form action={signOut}>
+        <form action={async () => {
+          // Stop notifications on shared devices before ending the authenticated session.
+          if ("serviceWorker" in navigator) {
+            const registration = await navigator.serviceWorker.getRegistration();
+            const subscription = await registration?.pushManager.getSubscription();
+            if (subscription) {
+              const { removePushSubscription } = await import("@/server/push-actions");
+              const result = await removePushSubscription(subscription.endpoint);
+              if (result.error) { alert(result.error); return; }
+              await subscription.unsubscribe();
+            }
+          }
+          await signOut();
+        }}>
           <Button variant="ghost" size="icon" type="submit" aria-label="Sign out">
             <LogOut aria-hidden />
           </Button>

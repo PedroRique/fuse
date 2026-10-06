@@ -30,6 +30,7 @@ import type { Task } from "@/domain/types";
 import { settleDrop } from "@/domain/drop-layout";
 import { visualSize } from "@/domain/layout";
 import { useBoardPreferences } from "@/lib/board-preferences";
+import { PushSettings } from "@/components/push-settings";
 
 export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
   const router = useRouter();
@@ -46,6 +47,15 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [pauseOpen, setPauseOpen] = useState(false);
   const [detailsId, setDetailsId] = useState<string | null>(null);
+  useEffect(() => {
+    const openTask = () => {
+      const id = new URL(window.location.href).searchParams.get("task");
+      if (id) setDetailsId(id);
+    };
+    openTask();
+    navigator.serviceWorker?.addEventListener("message", openTask);
+    return () => navigator.serviceWorker?.removeEventListener("message", openTask);
+  }, []);
   const [cutWire, setCutWire] = useState<{ id: string; desiredEnd?: Date } | null>(null);
   const [restored, setRestored] = useState(false);
   const preferences = useBoardPreferences();
@@ -274,9 +284,10 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
         emergencyDisabled={blocked || !!activePause || !online}
         arrangeDisabled={blocked || !online || boardTasks.length === 0}
       />
-      <div className="flex items-center gap-1 border-b px-3 py-2 sm:px-6" role="group" aria-label="Task view">
+      <div className="flex flex-wrap items-center gap-1 border-b px-3 py-2 sm:px-6" role="group" aria-label="Task view">
         <Button size="sm" variant={preferences.view === "canvas" ? "default" : "outline"} aria-pressed={preferences.view === "canvas"} onClick={() => preferences.update({ view: "canvas" })}>Canvas</Button>
         <Button size="sm" variant={preferences.view === "list" ? "default" : "outline"} aria-pressed={preferences.view === "list"} onClick={() => preferences.update({ view: "list" })}>List</Button>
+        <PushSettings />
       </div>
       {!online && (
         <div role="status" className="flex items-center justify-center gap-2 border-b bg-amber-50 px-4 py-2 text-sm text-amber-900">

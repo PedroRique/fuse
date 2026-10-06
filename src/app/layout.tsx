@@ -13,6 +13,7 @@ export const metadata: Metadata = {
   description: "Other task managers organize your tasks. This one makes them impossible to ignore.",
   applicationName: "Fuse",
   appleWebApp: { capable: true, title: "Fuse", statusBarStyle: "default" },
+  icons: { apple: "/icons/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {
