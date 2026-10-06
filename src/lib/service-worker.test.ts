@@ -3,12 +3,17 @@ import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 
 function worker() {
-  const listeners: Record<string, (event: any) => void> = {};
+  type TestEvent = {
+    data?: { json: () => unknown };
+    notification?: { close: () => void; data: { url: string } };
+    waitUntil: (pending: Promise<unknown>) => void;
+  };
+  const listeners: Record<string, (event: TestEvent) => void> = {};
   const notifications: unknown[] = [];
   const opened: string[] = [];
   const self = {
     location: { origin: "https://fuse.example" },
-    addEventListener: (name: string, fn: (event: any) => void) => { listeners[name] = fn; },
+    addEventListener: (name: string, fn: (event: TestEvent) => void) => { listeners[name] = fn; },
     registration: { showNotification: async (...args: unknown[]) => { notifications.push(args); } },
     clients: { matchAll: async () => [], openWindow: async (url: string) => { opened.push(url); } },
   };

@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowUpDown, Check, Eye, EyeOff, LayoutGrid, LogOut, Plus, Siren } from "lucide-react";
 import { Menu } from "@base-ui/react/menu";
@@ -116,7 +118,7 @@ export function AppHeader({
           // Stop notifications on shared devices before ending the authenticated session.
           if ("serviceWorker" in navigator) {
             const registration = await navigator.serviceWorker.getRegistration();
-            const subscription = await registration?.pushManager.getSubscription();
+            const subscription = await registration?.pushManager?.getSubscription();
             if (subscription) {
               const { removePushSubscription } = await import("@/server/push-actions");
               const result = await removePushSubscription(subscription.endpoint);
