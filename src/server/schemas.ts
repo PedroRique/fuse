@@ -27,6 +27,7 @@ export const updateContentSchema = z.object({
 });
 
 export const moveSchema = z.object({ taskId: id, x: coord, y: coord });
+export const moveTasksSchema = z.object({ changes: z.array(z.object({ id, x: coord, y: coord })).max(1000) });
 export const taskIdSchema = z.object({ taskId: id });
 export const undoLayoutSchema = z.object({ changes: z.array(z.object({ id, x: coord, y: coord, expectedX: coord, expectedY: coord })).max(1000) });
 export const rescheduleSchema = z.object({ taskId: id, newEnd: iso });

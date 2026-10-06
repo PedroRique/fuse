@@ -80,10 +80,10 @@ export function AppHeader({
             <Menu.Trigger
               disabled={arrangeDisabled}
               data-testid="sort-board"
-              aria-label="Sort board"
+              aria-label={`Sort board: ${SORTS.find((sort) => sort.value === sortBy)?.label ?? "Deadline"}`}
               className={buttonVariants({ variant: "outline" })}
             >
-              <ArrowUpDown aria-hidden className="size-4" /> <span className="hidden sm:inline">Sort</span>
+              <ArrowUpDown aria-hidden className="size-4" /> <span>{SORTS.find((sort) => sort.value === sortBy)?.label ?? "Sort"}</span>
             </Menu.Trigger>
             <Menu.Portal>
               <Menu.Positioner sideOffset={6} className="z-[200000]">

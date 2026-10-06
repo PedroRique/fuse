@@ -1,6 +1,6 @@
 import type { BoardPause, Impact, Task } from "./types";
 import { BOARD, CARD } from "./board";
-import { getProgress } from "./time";
+import { getTaskTemporalState } from "./urgency";
 
 export const IMPACT_RANK: Record<Impact, number> = { low: 1, normal: 2, high: 3, critical: 4 };
 
@@ -55,22 +55,28 @@ export function sortTasks(
   now: number,
   by: BoardSort,
 ): Task[] {
+  const temporal = new Map(tasks.map((task) => [task.id, getTaskTemporalState(task, pauses, now)]));
+  const byDeadline = (a: Task, b: Task) => temporal.get(a.id)!.remainingMs - temporal.get(b.id)!.remainingMs;
+  const byFuse = (a: Task, b: Task) => {
+    const ta = temporal.get(a.id)!;
+    const tb = temporal.get(b.id)!;
+    // Quiet cards must not outrank a visibly critical fuse.
+    return Number(ta.isDormant) - Number(tb.isDormant) || tb.progress - ta.progress || byDeadline(a, b);
+  };
   return [...tasks].sort((a, b) => {
     const done = Number(a.status === "completed") - Number(b.status === "completed");
     if (done) return done;
     if (by === "severity") {
       const d = IMPACT_RANK[b.impact] - IMPACT_RANK[a.impact];
       if (d) return d;
-      return getProgress(b, pauses, now) - getProgress(a, pauses, now);
+      return byFuse(a, b) || a.id.localeCompare(b.id);
     }
     if (by === "deadline") {
-      const d = Date.parse(a.deadlineAt) - Date.parse(b.deadlineAt);
+      const d = byDeadline(a, b);
       if (d) return d;
       return a.id.localeCompare(b.id);
     }
-    const d = getProgress(b, pauses, now) - getProgress(a, pauses, now);
-    if (d) return d;
-    return Date.parse(a.deadlineAt) - Date.parse(b.deadlineAt);
+    return byFuse(a, b) || a.id.localeCompare(b.id);
   });
 }
 

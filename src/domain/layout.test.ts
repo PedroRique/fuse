@@ -99,6 +99,25 @@ describe("sortTasks", () => {
       "done-critical",
     ]);
   });
+  it("keeps a critical visible fuse ahead of a dormant task", () => {
+    const critical = task({ id: "critical", impact: "normal", fuseStartedAt: iso(T0), deadlineAt: iso(T0 + 55 * 3_600_000) });
+    const quiet = task({ id: "quiet", impact: "normal", fuseStartedAt: iso(T0), deadlineAt: iso(T0 + 51 * 3_600_000), botherAfter: iso(now + 60_000) });
+    expect(sortTasks([quiet, critical], [], now, "fuse").map((t) => t.id)).toEqual(["critical", "quiet"]);
+  });
+  it("reorders when another fuse becomes more burned over time", () => {
+    const a = task({ id: "long", impact: "normal", fuseStartedAt: iso(T0), deadlineAt: iso(T0 + 100 * 3_600_000) });
+    const b = task({ id: "short", impact: "normal", fuseStartedAt: iso(T0 + 70 * 3_600_000), deadlineAt: iso(T0 + 80 * 3_600_000) });
+    expect(sortTasks([a, b], [], T0 + 72 * 3_600_000, "fuse").map((t) => t.id)).toEqual(["long", "short"]);
+    expect(sortTasks([a, b], [], T0 + 78 * 3_600_000, "fuse").map((t) => t.id)).toEqual(["short", "long"]);
+  });
+  it("uses the effective deadline after pauses and deterministic tie breaks", () => {
+    const a = task({ id: "a", impact: "normal", fuseStartedAt: iso(T0), deadlineAt: iso(T0 + 10 * 3_600_000) });
+    const b = task({ id: "b", impact: "normal", fuseStartedAt: iso(T0 + 4 * 3_600_000), deadlineAt: iso(T0 + 11 * 3_600_000) });
+    const pauses = [{ id: "p", reason: "break", startedAt: iso(T0 + 3_600_000), plannedEndAt: iso(T0 + 3 * 3_600_000), endedAt: null }];
+    expect(sortTasks([a, b], pauses, T0 + 5 * 3_600_000, "deadline").map((t) => t.id)).toEqual(["b", "a"]);
+    const equal = { ...a, id: "z" };
+    expect(sortTasks([equal, a], [], T0 + 5 * 3_600_000, "fuse").map((t) => t.id)).toEqual(["a", "z"]);
+  });
 });
 
 describe("readingOrder", () => {

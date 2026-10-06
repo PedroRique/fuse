@@ -21,11 +21,11 @@ import { getNow, syncServerClock, useClockValue, useHydrated } from "@/lib/clock
 import { useOnline, useReducedMotion } from "@/lib/use-online";
 import { getActivePause, getRemainingMs } from "@/domain/time";
 import { clampToBoard, getNewTaskPosition } from "@/domain/board";
-import { packCards, readingOrder, sortTasks, type BoardSort } from "@/domain/layout";
+import { packCards, sortTasks, type BoardSort } from "@/domain/layout";
 import { getTaskTemporalState } from "@/domain/urgency";
 import type { BoardSnapshot } from "@/server/queries";
 import { completeToast, playCompleteChime } from "@/lib/celebrate";
-import { moveTask, syncBoard, undoCompleteTask, undoLayout } from "@/server/actions";
+import { moveTasks, syncBoard, undoCompleteTask } from "@/server/actions";
 import type { Task } from "@/domain/types";
 import { settleDrop } from "@/domain/drop-layout";
 import { visualSize } from "@/domain/layout";
@@ -59,11 +59,7 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
   const [cutWire, setCutWire] = useState<{ id: string; desiredEnd?: Date } | null>(null);
   const [restored, setRestored] = useState(false);
   const preferences = useBoardPreferences();
-  const pendingArrangement = useRef<string | null>(null);
-  const onCreated = useCallback((taskId: string) => {
-    pendingArrangement.current = taskId;
-    refresh();
-  }, [refresh]);
+  const onCreated = refresh;
 
   // Timestamps are the truth; timers only repaint. Coming back to the tab re-syncs with the server.
   useEffect(() => {
@@ -110,23 +106,35 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
     const overrides = moved.key === incidentKey ? moved.map : {};
     return Object.fromEntries(tasks.map((t) => [t.id, overrides[t.id] ?? { x: t.positionX, y: t.positionY }]));
   }, [tasks, moved, incidentKey]);
-  const offerLayoutUndo = useCallback((before: Record<string, { x: number; y: number }>, after: Record<string, { x: number; y: number }>) => {
-    const changes = Object.entries(after).filter(([id, p]) => before[id] && (p.x !== before[id].x || p.y !== before[id].y))
-      .map(([id, p]) => ({ id, ...before[id], expectedX: p.x, expectedY: p.y }));
+  const [arranging, setArranging] = useState(false);
+  const arrangingRef = useRef(false);
+  const [arrangeRevision, setArrangeRevision] = useState(0);
+  const appliedLayout = useRef<string | null>(null);
+  const notifiedRevision = useRef(0);
+  const persistPositions = useCallback(async (next: Record<string, { x: number; y: number }>, notify = true) => {
+    if (arrangingRef.current) return;
+    const changes = Object.entries(next).filter(([id, p]) => p.x !== positions[id]?.x || p.y !== positions[id]?.y)
+      .map(([id, p]) => ({ id, ...p }));
     if (!changes.length) return;
-    let used = false;
-    const expires = Date.now() + 15_000;
-    toast.success("Board rearranged.", { duration: 15_000, action: { label: "Undo", onClick: async () => {
-      if (used || Date.now() > expires) return;
-      used = true;
-      const result = await undoLayout({ changes });
-      if (!result.ok) { toast.error("Couldn't undo that arrangement.", { description: result.error }); return; }
-      setMoved((previous) => ({ key: incidentKey, map: { ...(previous.key === incidentKey ? previous.map : {}), ...Object.fromEntries(changes.map((c) => [c.id, { x: c.x, y: c.y }])) } }));
+    arrangingRef.current = true;
+    setArranging(true);
+    setMoved({ key: incidentKey, map: next });
+    try {
+      const result = await moveTasks({ changes });
+      if (!result.ok) throw new Error(result.error);
+      if (notify) toast.success("Board rearranged.", { duration: 2500 });
+    } catch (error) {
+      setMoved({ key: incidentKey, map: {} });
+      toast.error("Couldn't rearrange the board.", { description: error instanceof Error ? error.message : "Try again." });
       refresh();
-    } } });
-  }, [incidentKey, refresh]);
+    } finally {
+      arrangingRef.current = false;
+      setArranging(false);
+    }
+  }, [positions, incidentKey, refresh]);
   const onMove = useCallback(
     async (id: string, x: number, y: number, sizes: Record<string, { width: number; height: number }>) => {
+      if (arrangingRef.current) return;
       const cards = tasks.filter((t) => t.status === "active" || (t.status === "completed" && !preferences.hideCompleted)).map((t) => {
         const size = visualSize(getTaskTemporalState(t, pauses, getNow()).scale);
         return { id: t.id, ...positions[t.id], ...(sizes[t.id] ?? { width: size.w, height: size.h }) };
@@ -136,39 +144,20 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
         toast.error("Not enough room for this move.", { description: "Zoom out or tidy the board first." });
         return;
       }
-      setMoved({ key: incidentKey, map: next });
-      const changes = Object.entries(next).filter(([key, p]) => p.x !== positions[key]?.x || p.y !== positions[key]?.y);
-      const results = await Promise.all(changes.map(([taskId, p]) => moveTask({ taskId, ...p })));
-      const failure = results.find((r) => !r.ok);
-      if (failure && !failure.ok) {
-        setMoved({ key: incidentKey, map: {} });
-        toast.error("Couldn't rearrange the cards.", { description: failure.error });
-        refresh();
-      } else {
-        offerLayoutUndo(positions, next);
-      }
+      await persistPositions(next);
     },
-    [incidentKey, tasks, pauses, positions, refresh, preferences.hideCompleted, offerLayoutUndo],
+    [tasks, pauses, positions, preferences.hideCompleted, persistPositions],
   );
 
   const layoutTasks = useCallback(
-    async (ordered: Task[]) => {
+    async (ordered: Task[], notify = false) => {
       if (!ordered.length) return;
       const now = getNow();
       const packed = packCards(ordered.map((t) => ({ id: t.id, scale: getTaskTemporalState(t, pauses, now).scale })));
       const next = Object.fromEntries(Object.entries(packed).map(([id, p]) => [id, clampToBoard(p.x, p.y)]));
-      setMoved({ key: incidentKey, map: next });
-      const results = await Promise.all(Object.entries(next).map(([id, p]) => moveTask({ taskId: id, x: p.x, y: p.y })));
-      const fail = results.find((r) => !r.ok);
-      if (fail && !fail.ok) {
-        setMoved({ key: incidentKey, map: {} });
-        toast.error("Couldn't rearrange the board.", { description: fail.error });
-        refresh();
-      } else {
-        offerLayoutUndo(positions, next);
-      }
+      await persistPositions(next, notify);
     },
-    [pauses, incidentKey, refresh, positions, offerLayoutUndo],
+    [pauses, persistPositions],
   );
 
   // --- completion: animate only after the server confirmed ---
@@ -230,27 +219,32 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
   }, [dueTasks, online, blocked, onDue]);
 
   const onTidy = useCallback(() => {
-    void layoutTasks(readingOrder(boardTasks, positions));
-  }, [layoutTasks, boardTasks, positions]);
+    setArrangeRevision((revision) => revision + 1);
+  }, []);
 
   const onSort = useCallback(
     (by: BoardSort) => {
       preferences.update({ sort: by });
-      if (preferences.view === "list") return;
-      void layoutTasks(sortTasks(boardTasks, pauses, getNow(), by));
+      setArrangeRevision((revision) => revision + 1);
     },
-    [layoutTasks, boardTasks, pauses, preferences],
+    [preferences],
   );
 
-  // Wait for the refreshed snapshot so the new card participates in the layout.
+  // List rendering and canvas arrangements share the same comparator and stored criterion.
+  // Subscribe to order changes, not every clock tick, to avoid continuous movement/writes.
+  const orderKey = useClockValue((now) => sortTasks(tasks.filter((task) => task.status === "active" || (task.status === "completed" && !preferences.hideCompleted)), pauses, now, preferences.sort).map((task) => task.id).join("|"), "");
+  const taskKey = tasks.map((task) => [task.id, task.status, task.impact, task.fuseStartedAt, task.deadlineAt, task.botherAfter].join(":")).sort().join("|");
+  const pauseKey = pauses.map((pause) => [pause.id, pause.startedAt, pause.plannedEndAt, pause.endedAt].join(":")).join("|");
+  const layoutKey = [incidentKey, preferences.sort, preferences.hideCompleted, orderKey, taskKey, pauseKey, arrangeRevision].join(";");
   useEffect(() => {
-    const id = pendingArrangement.current;
-    if (!id || !tasks.some((t) => t.id === id)) return;
-    pendingArrangement.current = null;
-    if (blocked || !online || preferences.view === "list") return;
+    if (!mounted || blocked || !online || preferences.view !== "canvas") { appliedLayout.current = null; return; }
+    if (arranging || appliedLayout.current === layoutKey) return;
+    appliedLayout.current = layoutKey;
+    const notify = arrangeRevision > notifiedRevision.current;
+    notifiedRevision.current = arrangeRevision;
     const visible = tasks.filter((t) => t.status === "active" || (t.status === "completed" && !preferences.hideCompleted));
-    void layoutTasks(sortTasks(visible, pauses, getNow(), preferences.sort));
-  }, [tasks, pauses, blocked, online, layoutTasks, preferences.hideCompleted, preferences.sort, preferences.view]);
+    void layoutTasks(sortTasks(visible, pauses, getNow(), preferences.sort), notify);
+  }, [mounted, tasks, pauses, blocked, online, arranging, layoutTasks, layoutKey, arrangeRevision, preferences.hideCompleted, preferences.sort, preferences.view]);
 
   const detailsTask = tasks.find((t) => t.id === detailsId && (t.status === "active" || t.status === "completed")) ?? null;
   const cutWireTask = tasks.find((t) => t.id === cutWire?.id && t.status === "active") ?? null;
@@ -287,7 +281,7 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
         onToggleCompleted={() => preferences.update({ hideCompleted: !preferences.hideCompleted })}
         newTaskDisabled={blocked || !online}
         emergencyDisabled={blocked || !!activePause || !online}
-        arrangeDisabled={blocked || !online || boardTasks.length === 0}
+        arrangeDisabled={blocked || !online || arranging || boardTasks.length === 0}
       />
       <div className="flex flex-wrap items-center gap-1 border-b px-3 py-2 sm:px-6" role="group" aria-label="Task view">
         <Button size="sm" variant={preferences.view === "canvas" ? "default" : "outline"} aria-pressed={preferences.view === "canvas"} onClick={() => preferences.update({ view: "canvas" })}>Canvas</Button>
@@ -332,7 +326,7 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
             motions={motions}
             paused={!!activePause}
             shaking={!!exploding}
-            interactive={!blocked && online}
+            interactive={!blocked && online && !arranging}
             onMove={onMove}
             onOpen={setDetailsId}
             onDue={onDue}

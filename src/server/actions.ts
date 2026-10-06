@@ -7,6 +7,7 @@ import {
   createTaskSchema,
   cutWireSchema,
   moveSchema,
+  moveTasksSchema,
   pauseSchema,
   postMortemSchema,
   rescheduleSchema,
@@ -67,6 +68,8 @@ export const updateTaskContent = async (input: z.input<typeof updateContentSchem
 
 export const moveTask = async (input: z.input<typeof moveSchema>) =>
   call(moveSchema, input, "move_task", (v) => ({ p_task: v.taskId, p_x: v.x, p_y: v.y }));
+export const moveTasks = async (input: z.input<typeof moveTasksSchema>) =>
+  call(moveTasksSchema, input, "move_tasks", (v) => ({ p_changes: v.changes }));
 
 export const completeTask = async (input: z.input<typeof taskIdSchema>) =>
   call(taskIdSchema, input, "complete_task", (v) => ({ p_task: v.taskId }));
