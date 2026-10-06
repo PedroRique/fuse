@@ -6,7 +6,7 @@ import { Check, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useNow } from "@/lib/clock";
-import { getTaskTemporalState, URGENCY } from "@/domain/urgency";
+import { getTaskTemporalState } from "@/domain/urgency";
 import { sortTasks, type BoardSort } from "@/domain/layout";
 import { findTasks } from "@/domain/search";
 import { formatCountdown, formatDuration, getEffectiveDeadline } from "@/domain/time";
@@ -25,19 +25,20 @@ const TaskRow = memo(function TaskRow({ task, pauses, onOpen, onDue, interactive
   const done = task.status === "completed";
   const due = now > 0 && task.status === "active" && temporal.state === "exploded";
   useEffect(() => { if (due) onDue(); }, [due, onDue]);
-  // Use the same urgency curve as the canvas, but grow typography and spacing rather than scaling text.
-  const growth = Math.max(0, Math.min(1, (temporal.scale - 1) / (URGENCY.maxScale - 1)));
+  // Apply the canvas multiplier directly to row height, text and spacing.
+  // Real layout dimensions keep rows apart and text sharp at every scale.
+  const scale = temporal.scale;
   const hot = !done && !temporal.isDormant && temporal.state === "critical";
   return <li>
     <button type="button" disabled={!interactive} onClick={() => onOpen(task.id)} data-testid="task-list-row" data-task-id={task.id}
-      className={cn("w-full rounded-xl border bg-white px-4 text-left text-stone-900 shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-default", done && "border-emerald-200 bg-emerald-50", hot && "border-red-400")}
-      style={{ paddingBlock: done ? 12 : Math.round(16 + growth * 16), backgroundColor: !done && temporal.heat ? `color-mix(in oklch, white, ${hot ? "#dc2626" : "#ea580c"} ${Math.round(temporal.heat * 24)}%)` : undefined }}>
+      className={cn("flex w-full flex-col justify-center rounded-xl border bg-white px-4 text-left text-stone-900 shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-default", done && "border-emerald-200 bg-emerald-50", hot && "border-red-400")}
+      style={{ minHeight: 160 * scale, paddingBlock: 16 * scale, backgroundColor: !done && temporal.heat ? `color-mix(in oklch, white, ${hot ? "#dc2626" : "#ea580c"} ${Math.round(temporal.heat * 24)}%)` : undefined }}>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-stone-600">
         <span className="flex items-center gap-1">{done && <Check className="size-3" aria-hidden />}{describeTemporal(temporal, task)}</span>
         {!done && <span className={cn("font-mono tabular-nums", hot && "font-bold text-red-800")}>{temporal.isFinalCountdown ? formatCountdown(temporal.remainingMs) : `${formatDuration(temporal.remainingMs)} left`}</span>}
       </div>
-      <p className={cn("my-2 break-words leading-tight font-semibold", done && "text-stone-600")}
-        style={{ fontSize: done ? 16 : Math.round(18 + growth * 14) }}>{task.title}</p>
+      <p className={cn("my-2 line-clamp-3 break-words leading-tight font-semibold", done && "text-stone-600")}
+        style={{ fontSize: done ? 16 : 18 * scale }}>{task.title}</p>
       <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
         <ImpactBadge impact={task.impact} />
         <span>Due {format(new Date(done ? task.deadlineAt : getEffectiveDeadline(task, pauses, now || Date.parse(task.fuseStartedAt))), "dd MMM, HH:mm")}</span>
