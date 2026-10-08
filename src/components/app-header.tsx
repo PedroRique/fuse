@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpDown, Check, Eye, EyeOff, LayoutGrid, LogOut, Plus, Siren } from "lucide-react";
+import { ArrowUpDown, Check, Eye, EyeOff, LayoutGrid, LogOut, Plus, Siren, Sparkles } from "lucide-react";
 import { Menu } from "@base-ui/react/menu";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { signOut } from "@/server/actions";
@@ -17,6 +17,7 @@ const SORTS: { value: BoardSort; label: string; hint: string }[] = [
 export function AppHeader({
   active,
   onNewTask,
+  onImport,
   onEmergency,
   onTidy,
   onSort,
@@ -30,6 +31,7 @@ export function AppHeader({
 }: {
   active: "board" | "history";
   onNewTask?: () => void;
+  onImport?: () => void;
   onEmergency?: () => void;
   onTidy?: () => void;
   onSort?: (by: BoardSort) => void;
@@ -108,6 +110,7 @@ export function AppHeader({
             <Siren aria-hidden /> <span className="hidden sm:inline">Emergency</span>
           </Button>
         )}
+        {onImport && <Button variant="outline" onClick={onImport} disabled={newTaskDisabled} aria-label="Import tasks with AI"><Sparkles aria-hidden /><span className="hidden sm:inline">Import</span></Button>}
         {onNewTask && (
           <Button onClick={onNewTask} disabled={newTaskDisabled} data-testid="new-task">
             <Plus aria-hidden /> <span className="hidden sm:inline">New Task</span>

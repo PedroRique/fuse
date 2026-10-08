@@ -11,6 +11,7 @@ import { TaskList } from "./task-list";
 import { PauseBanner } from "./pause-banner";
 import type { CardMotion } from "./task-card";
 import { CreateTaskDialog } from "@/components/dialogs/create-task-dialog";
+import { ImportTasksDialog } from "@/components/dialogs/import-tasks-dialog";
 import { TaskDetailsDialog } from "@/components/dialogs/task-details-dialog";
 import { CutWireDialog } from "@/components/dialogs/cut-wire-dialog";
 import { EmergencyPauseDialog } from "@/components/dialogs/emergency-pause-dialog";
@@ -45,6 +46,7 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
   useEffect(() => syncServerClock(snapshot.serverNow), [snapshot.serverNow]);
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [pauseOpen, setPauseOpen] = useState(false);
   const [detailsId, setDetailsId] = useState<string | null>(null);
   useEffect(() => {
@@ -272,6 +274,7 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
       <AppHeader
         active="board"
         onNewTask={() => setCreateOpen(true)}
+        onImport={() => setImportOpen(true)}
         onEmergency={() => setPauseOpen(true)}
         onTidy={preferences.view === "canvas" ? onTidy : undefined}
         onSort={onSort}
@@ -343,6 +346,7 @@ export function BoardApp({ snapshot }: { snapshot: BoardSnapshot }) {
         <Plus className="size-6" aria-hidden />
       </Button>}
 
+      <ImportTasksDialog open={importOpen} onOpenChange={setImportOpen} existing={tasks.filter(task=>task.status!=="discarded")} onCreated={onCreated} disabled={!online||blocked} />
       <CreateTaskDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
