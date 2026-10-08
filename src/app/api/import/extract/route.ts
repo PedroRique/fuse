@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   if (!credential) return reply("AI import isn't configured yet. Your text has been kept.",503);
   const { data: allowed, error: quotaError } = await supabase.rpc("claim_task_extraction");
   if (quotaError) return reply("Couldn't check your import limit. Try again.",503);
-  if (!allowed) return reply("Import limit reached. Try later (3 analyses/minute, 20/day).",429);
+  if (!allowed) return reply("AI limit reached. Try later (3 requests/minute, 20/day; audio uses one for transcription and one for analysis).",429);
   try {
     const response = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions",{
       method:"POST", headers:{Authorization:`Bearer ${credential}`,"Content-Type":"application/json"},

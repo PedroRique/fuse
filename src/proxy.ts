@@ -13,7 +13,7 @@ export async function proxy(request: NextRequest) {
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     // Cards and popovers need dynamic inline styles; scripts still require a nonce.
-    "style-src 'self' 'unsafe-inline'", "img-src 'self' data: blob:", "font-src 'self'",
+    "style-src 'self' 'unsafe-inline'", "img-src 'self' data: blob:", "media-src 'self' blob:", "font-src 'self'",
     `connect-src 'self' ${supabaseOrigin} ${supabaseOrigin.replace("https:", "wss:")}${isDev ? " ws: http://localhost:* http://127.0.0.1:*" : ""}`,
     "worker-src 'self'", "manifest-src 'self'", "object-src 'none'", "base-uri 'self'",
     "form-action 'self'", "frame-ancestors 'none'", ...(!isDev ? ["upgrade-insecure-requests"] : []),
