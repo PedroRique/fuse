@@ -12,7 +12,8 @@ is Google via Vercel AI Gateway. Provider/Gateway request logging and retention
 are governed by their service configuration; do not claim zero retention.
 
 The server uses the documented Gateway Chat Completions HTTP API (no SDK/runtime
-upgrade is required). Authentication uses VERCEL_OIDC_TOKEN on Vercel, or a
+upgrade is required). Authentication uses the per-request x-vercel-oidc-token
+header in Vercel Functions, VERCEL_OIDC_TOKEN for linked local development, or a
 server-only AI_GATEWAY_API_KEY for local development. AI_GATEWAY_MODEL optionally
 overrides the verified default google/gemini-3.5-flash-lite. The Vercel team must
 have Gateway access/credits; this feature does not purchase credits or enable a

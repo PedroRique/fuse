@@ -32,7 +32,11 @@ export async function POST(request: Request) {
   if (!input.success) return reply("Use between 3 and 16,000 characters.",400);
   try { new Intl.DateTimeFormat("en",{timeZone:input.data.timeZone}); }
   catch { return reply("Invalid time zone.",400); }
-  const credential = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN;
+  // Functions receive a refreshed OIDC token on each request. The env token
+  // is intended for builds and linked local development.
+  const credential = process.env.AI_GATEWAY_API_KEY
+    || (process.env.VERCEL === "1" ? request.headers.get("x-vercel-oidc-token") : null)
+    || process.env.VERCEL_OIDC_TOKEN;
   if (!credential) return reply("AI import isn't configured yet. Your text has been kept.",503);
   const { data: allowed, error: quotaError } = await supabase.rpc("claim_task_extraction");
   if (quotaError) return reply("Couldn't check your import limit. Try again.",503);
